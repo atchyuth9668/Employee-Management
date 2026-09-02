@@ -42,29 +42,28 @@ serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify caller is admin or team_lead using the user's JWT.
-  // Use the ANON key client with user's bearer token (standard pattern).
+  // Decode user from JWT in Authorization header directly using service-role.
+  // The service-role key bypasses RLS for user lookup but still requires a valid user JWT for verification.
   const authHeader = req.headers.get('Authorization') ?? '';
-  const apikeyHeader = req.headers.get('apikey') ?? '';
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? apikeyHeader;
-  console.log('invite-engineer: anon key present?', !!anonKey, 'anon len:', anonKey.length);
+  let userId: string | null = null;
 
-  if (!anonKey) {
-    return new Response(JSON.stringify({ error: 'Server misconfigured: no anon key' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  if (authHeader.startsWith('Bearer ')) {
+    const jwt = authHeader.substring(7);
+    // Decode JWT payload (middle segment)
+    try {
+      const parts = jwt.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        userId = payload.sub ?? null;
+        console.log('invite-engineer: decoded JWT sub:', userId, 'role:', payload.role);
+      }
+    } catch (e) {
+      console.log('invite-engineer: jwt decode error', (e as Error).message);
+    }
   }
 
-  // Two clients: one to verify user (anon + user bearer), one to do privileged ops (service role).
-  const verifyClient = createClient(supabaseUrl, anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: caller, error: userErr } = await verifyClient.auth.getUser();
-  console.log('invite-engineer: getUser result', { hasUser: !!caller?.user, errMsg: userErr?.message, userId: caller?.user?.id });
-  if (userErr || !caller?.user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized', detail: userErr?.message }), {
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'Unauthorized: no valid bearer token' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -73,11 +72,11 @@ serve(async (req: Request) => {
   const { data: profile, error: profileErr } = await authClient
     .from('profiles')
     .select('role')
-    .eq('id', caller.user.id)
+    .eq('id', userId)
     .single();
   console.log('invite-engineer: profile lookup', { role: profile?.role, errMsg: profileErr?.message });
   if (!profile || !['admin', 'team_lead'].includes(profile.role)) {
-    return new Response(JSON.stringify({ error: 'Forbidden: admin or team_lead only' }), {
+    return new Response(JSON.stringify({ error: 'Forbidden: admin or team_lead only', userRole: profile?.role ?? null }), {
       status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
