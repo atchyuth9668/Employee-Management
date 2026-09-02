@@ -30,7 +30,6 @@ export const supabase = createClient(
       storageKey: 'field-ops-auth',
     },
     realtime: isSupabaseConfigured() ? { params: { eventsPerSecond: 10 } } : undefined,
-    global: { headers: { 'x-application-name': 'field-ops-platform' } },
   }
 );
 
