@@ -42,25 +42,35 @@ serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify caller is admin or team_lead
+  // Verify caller is admin or team_lead using the user's JWT
   const authHeader = req.headers.get('Authorization') ?? '';
-  const callerClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Use the service role client with the user's JWT to verify
+  const callerClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
     global: { headers: { Authorization: authHeader } },
   });
-  const { data: caller } = await callerClient.auth.getUser();
-  if (!caller?.user) {
+  const { data: caller, error: userErr } = await callerClient.auth.getUser();
+  if (userErr || !caller?.user) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+
   const { data: profile } = await authClient
     .from('profiles')
     .select('role')
     .eq('id', caller.user.id)
     .single();
   if (!profile || !['admin', 'team_lead'].includes(profile.role)) {
-    return new Response(JSON.stringify({ error: 'Forbidden' }), {
+    return new Response(JSON.stringify({ error: 'Forbidden: admin or team_lead only' }), {
       status: 403,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
