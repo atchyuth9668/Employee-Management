@@ -44,6 +44,8 @@ serve(async (req: Request) => {
 
   // Verify caller is admin or team_lead using the user's JWT
   const authHeader = req.headers.get('Authorization') ?? '';
+  console.log('invite-engineer: auth header present?', !!authHeader, 'len:', authHeader.length);
+
   if (!authHeader) {
     return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
       status: 401,
@@ -57,18 +59,20 @@ serve(async (req: Request) => {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: caller, error: userErr } = await callerClient.auth.getUser();
+  console.log('invite-engineer: getUser result', { hasUser: !!caller?.user, errMsg: userErr?.message });
   if (userErr || !caller?.user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    return new Response(JSON.stringify({ error: 'Unauthorized', detail: userErr?.message }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  const { data: profile } = await authClient
+  const { data: profile, error: profileErr } = await authClient
     .from('profiles')
     .select('role')
     .eq('id', caller.user.id)
     .single();
+  console.log('invite-engineer: profile lookup', { role: profile?.role, errMsg: profileErr?.message });
   if (!profile || !['admin', 'team_lead'].includes(profile.role)) {
     return new Response(JSON.stringify({ error: 'Forbidden: admin or team_lead only' }), {
       status: 403,
