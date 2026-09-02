@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 
@@ -15,6 +15,10 @@ export const ConnectionProvider = ({ children }: { children: React.ReactNode }) 
   const [state, setState] = useState<ConnectionState>('connecting');
 
   useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setState(navigator.onLine ? 'connected' : 'disconnected');
+      return;
+    }
     let mounted = true;
     const channel = supabase.channel('connection-state', {
       config: { presence: { key: 'connection-monitor' } },

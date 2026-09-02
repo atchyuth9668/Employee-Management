@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type {
   Engineer,
   School,
@@ -34,22 +34,26 @@ const handleError = (err: unknown): never => {
 };
 
 const sb = supabase as unknown as {
-  from: (table: string) => {
-    select: (cols?: string) => any;
-    insert: (values: unknown) => any;
-    update: (values: unknown) => any;
-    eq: (col: string, val: unknown) => any;
-    is: (col: string, val: unknown) => any;
-    in: (col: string, vals: unknown[]) => any;
-    ilike: (col: string, pattern: string) => any;
-    or: (pattern: string) => any;
-    order: (col: string, opts?: { ascending?: boolean }) => any;
-    maybeSingle: () => any;
-    single: () => any;
-    limit: (n: number) => any;
-  };
+  from: (table: string) => any;
   channel: (name: string, opts?: unknown) => any;
   removeChannel: (channel: unknown) => void;
+};
+
+const subscribeToTable = (
+  qc: ReturnType<typeof useQueryClient>,
+  channelName: string,
+  table: string,
+  queryKeyToInvalidate: readonly unknown[],
+  filter?: string,
+) => {
+  const channel = sb.channel(channelName);
+  const cfg: Record<string, unknown> = { event: '*', schema: 'public', table };
+  if (filter) cfg.filter = filter;
+  channel.on('postgres_changes', cfg, () => {
+    qc.invalidateQueries({ queryKey: queryKeyToInvalidate });
+  });
+  channel.subscribe();
+  return channel;
 };
 
 export const useEngineers = (options?: Partial<UseQueryOptions<Engineer[]>>) => {
@@ -61,16 +65,13 @@ export const useEngineers = (options?: Partial<UseQueryOptions<Engineer[]>>) => 
       if (error) handleError(error);
       return ((data ?? []) as Engineer[]);
     },
+    enabled: isSupabaseConfigured(),
     ...options,
   });
 
   useEffect(() => {
-    const channel = sb
-      .channel('engineers-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'engineers' }, () => {
-        qc.invalidateQueries({ queryKey: queryKeys.engineers });
-      })
-      .subscribe();
+    if (!isSupabaseConfigured()) return;
+    const channel = subscribeToTable(qc, 'engineers-realtime', 'engineers', queryKeys.engineers);
     return () => {
       sb.removeChannel(channel);
     };
@@ -88,7 +89,7 @@ export const useEngineer = (id: string | undefined) => {
       if (error) handleError(error);
       return ((data as Engineer | null) ?? null);
     },
-    enabled: !!id,
+    enabled: !!id && isSupabaseConfigured(),
   });
 };
 
@@ -105,16 +106,13 @@ export const useSchools = (options?: Partial<UseQueryOptions<School[]>>) => {
       if (error) handleError(error);
       return ((data ?? []) as School[]);
     },
+    enabled: isSupabaseConfigured(),
     ...options,
   });
 
   useEffect(() => {
-    const channel = sb
-      .channel('schools-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'schools' }, () => {
-        qc.invalidateQueries({ queryKey: queryKeys.schools });
-      })
-      .subscribe();
+    if (!isSupabaseConfigured()) return;
+    const channel = subscribeToTable(qc, 'schools-realtime', 'schools', queryKeys.schools);
     return () => {
       sb.removeChannel(channel);
     };
@@ -132,7 +130,7 @@ export const useSchool = (id: string | undefined) => {
       if (error) handleError(error);
       return ((data as School | null) ?? null);
     },
-    enabled: !!id,
+    enabled: !!id && isSupabaseConfigured(),
   });
 };
 
@@ -150,19 +148,18 @@ export const useSchoolChecklist = (schoolId: string | undefined) => {
       if (error) handleError(error);
       return ((data as SchoolChecklist | null) ?? null);
     },
-    enabled: !!schoolId,
+    enabled: !!schoolId && isSupabaseConfigured(),
   });
 
   useEffect(() => {
-    if (!schoolId) return;
-    const channel = sb
-      .channel(`checklist-realtime-${schoolId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'school_checklists', filter: `school_id=eq.${schoolId}` },
-        () => qc.invalidateQueries({ queryKey: queryKeys.schoolChecklist(schoolId) })
-      )
-      .subscribe();
+    if (!schoolId || !isSupabaseConfigured()) return;
+    const channel = subscribeToTable(
+      qc,
+      `checklist-realtime-${schoolId}`,
+      'school_checklists',
+      queryKeys.schoolChecklist(schoolId),
+      `school_id=eq.${schoolId}`,
+    );
     return () => {
       sb.removeChannel(channel);
     };
@@ -180,16 +177,13 @@ export const useVisits = (options?: Partial<UseQueryOptions<SchoolVisit[]>>) => 
       if (error) handleError(error);
       return ((data ?? []) as SchoolVisit[]);
     },
+    enabled: isSupabaseConfigured(),
     ...options,
   });
 
   useEffect(() => {
-    const channel = sb
-      .channel('visits-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'school_visits' }, () => {
-        qc.invalidateQueries({ queryKey: queryKeys.visits });
-      })
-      .subscribe();
+    if (!isSupabaseConfigured()) return;
+    const channel = subscribeToTable(qc, 'visits-realtime', 'school_visits', queryKeys.visits);
     return () => {
       sb.removeChannel(channel);
     };
@@ -207,7 +201,7 @@ export const useVisit = (id: string | undefined) => {
       if (error) handleError(error);
       return ((data as SchoolVisit | null) ?? null);
     },
-    enabled: !!id,
+    enabled: !!id && isSupabaseConfigured(),
   });
 };
 
@@ -220,16 +214,13 @@ export const useDailyLogs = (options?: Partial<UseQueryOptions<DailyLog[]>>) => 
       if (error) handleError(error);
       return ((data ?? []) as DailyLog[]);
     },
+    enabled: isSupabaseConfigured(),
     ...options,
   });
 
   useEffect(() => {
-    const channel = sb
-      .channel('logs-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs' }, () => {
-        qc.invalidateQueries({ queryKey: queryKeys.logs });
-      })
-      .subscribe();
+    if (!isSupabaseConfigured()) return;
+    const channel = subscribeToTable(qc, 'logs-realtime', 'daily_logs', queryKeys.logs);
     return () => {
       sb.removeChannel(channel);
     };
@@ -250,16 +241,13 @@ export const useEscalations = (options?: Partial<UseQueryOptions<Escalation[]>>)
       if (error) handleError(error);
       return ((data ?? []) as Escalation[]);
     },
+    enabled: isSupabaseConfigured(),
     ...options,
   });
 
   useEffect(() => {
-    const channel = sb
-      .channel('escalations-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalations' }, () => {
-        qc.invalidateQueries({ queryKey: queryKeys.escalations });
-      })
-      .subscribe();
+    if (!isSupabaseConfigured()) return;
+    const channel = subscribeToTable(qc, 'escalations-realtime', 'escalations', queryKeys.escalations);
     return () => {
       sb.removeChannel(channel);
     };
@@ -277,7 +265,7 @@ export const useEscalation = (id: string | undefined) => {
       if (error) handleError(error);
       return ((data as Escalation | null) ?? null);
     },
-    enabled: !!id,
+    enabled: !!id && isSupabaseConfigured(),
   });
 };
 
@@ -511,14 +499,11 @@ export const useNotifications = () => {
       if (error) handleError(error);
       return (data ?? []) as Pick<Escalation, 'id' | 'urgency' | 'status' | 'issue_type' | 'school_id' | 'created_at'>[];
     },
+    enabled: isSupabaseConfigured(),
   });
   useEffect(() => {
-    const channel = sb
-      .channel('notifications-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalations' }, () =>
-        qc.invalidateQueries({ queryKey: queryKeys.notifications })
-      )
-      .subscribe();
+    if (!isSupabaseConfigured()) return;
+    const channel = subscribeToTable(qc, 'notifications-realtime', 'escalations', queryKeys.notifications);
     return () => {
       sb.removeChannel(channel);
     };
