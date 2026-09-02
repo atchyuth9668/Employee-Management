@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, Download, Upload } from 'lucide-react';
 import { useEngineers, useCreateEngineer, useUpdateEngineer, useSoftDeleteEngineer } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
+import { supabase } from '../../lib/supabase';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -81,8 +82,17 @@ export const EngineersListPage = () => {
         await update.mutateAsync({ id: editing, updates: { full_name: form.full_name, email: form.email, phone: form.phone || null, region: form.region as 'Andhra Pradesh' | 'Telangana', role: form.role } });
         success('Engineer updated', 'Changes saved');
       } else {
-        await create.mutateAsync({ full_name: form.full_name, email: form.email, phone: form.phone || null, region: form.region as 'Andhra Pradesh' | 'Telangana', role: form.role, is_active: true, auth_user_id: null, team_id: null });
-        success('Engineer added', 'Engineer record created');
+        const { error: fnErr } = await supabase.functions.invoke('invite-engineer', {
+          body: {
+            full_name: form.full_name,
+            email: form.email,
+            phone: form.phone || null,
+            region: form.region,
+            role: form.role,
+          },
+        });
+        if (fnErr) throw fnErr;
+        success('Engineer invited', 'They will receive an email to set their password');
       }
       setOpen(false);
       resetForm();
