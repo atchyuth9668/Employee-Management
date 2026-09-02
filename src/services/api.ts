@@ -39,25 +39,73 @@ const sb = supabase as unknown as {
   removeChannel: (channel: unknown) => void;
 };
 
-const subscribeToTable = (
-  qc: ReturnType<typeof useQueryClient>,
+const activeChannels = new Map<string, any>();
+const channelRefCounts = new Map<string, number>();
+
+const acquireChannel = (
+  channelName: string,
+  table: string,
+  queryKeyToInvalidate: readonly unknown[],
+  filter?: string,
+): any => {
+  const existing = activeChannels.get(channelName);
+  if (existing) {
+    channelRefCounts.set(channelName, (channelRefCounts.get(channelName) ?? 0) + 1);
+    return existing;
+  }
+  const qc = (sb as any)._qcRef;
+  let channel: any = null;
+  try {
+    channel = sb.channel(channelName);
+    const cfg: Record<string, unknown> = { event: '*', schema: 'public', table };
+    if (filter) cfg.filter = filter;
+    channel.on('postgres_changes', cfg, () => {
+      qc?.invalidateQueries({ queryKey: queryKeyToInvalidate });
+    });
+    channel.subscribe();
+    activeChannels.set(channelName, channel);
+    channelRefCounts.set(channelName, 1);
+  } catch (err) {
+    console.warn(`Realtime subscribe failed for ${table}`, err);
+  }
+  return channel;
+};
+
+const releaseChannel = (channelName: string): void => {
+  const count = (channelRefCounts.get(channelName) ?? 0) - 1;
+  if (count > 0) {
+    channelRefCounts.set(channelName, count);
+    return;
+  }
+  const channel = activeChannels.get(channelName);
+  if (channel) {
+    try {
+      sb.removeChannel(channel);
+    } catch {}
+    activeChannels.delete(channelName);
+    channelRefCounts.delete(channelName);
+  }
+};
+
+const useRealtimeSubscription = (
   channelName: string,
   table: string,
   queryKeyToInvalidate: readonly unknown[],
   filter?: string,
 ) => {
-  const channel = sb.channel(channelName);
-  const cfg: Record<string, unknown> = { event: '*', schema: 'public', table };
-  if (filter) cfg.filter = filter;
-  channel.on('postgres_changes', cfg, () => {
-    qc.invalidateQueries({ queryKey: queryKeyToInvalidate });
-  });
-  channel.subscribe();
-  return channel;
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    (sb as any)._qcRef = qc;
+    acquireChannel(channelName, table, queryKeyToInvalidate, filter);
+    return () => {
+      releaseChannel(channelName);
+    };
+  }, [qc, channelName, table, filter]);
 };
 
 export const useEngineers = (options?: Partial<UseQueryOptions<Engineer[]>>) => {
-  const qc = useQueryClient();
   const query = useQuery<Engineer[]>({
     queryKey: queryKeys.engineers,
     queryFn: async () => {
@@ -69,13 +117,7 @@ export const useEngineers = (options?: Partial<UseQueryOptions<Engineer[]>>) => 
     ...options,
   });
 
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    const channel = subscribeToTable(qc, 'engineers-realtime', 'engineers', queryKeys.engineers);
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [qc]);
+  useRealtimeSubscription('engineers-realtime', 'engineers', queryKeys.engineers);
 
   return query;
 };
@@ -94,7 +136,6 @@ export const useEngineer = (id: string | undefined) => {
 };
 
 export const useSchools = (options?: Partial<UseQueryOptions<School[]>>) => {
-  const qc = useQueryClient();
   const query = useQuery<School[]>({
     queryKey: queryKeys.schools,
     queryFn: async () => {
@@ -110,13 +151,7 @@ export const useSchools = (options?: Partial<UseQueryOptions<School[]>>) => {
     ...options,
   });
 
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    const channel = subscribeToTable(qc, 'schools-realtime', 'schools', queryKeys.schools);
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [qc]);
+  useRealtimeSubscription('schools-realtime', 'schools', queryKeys.schools);
 
   return query;
 };
@@ -135,7 +170,6 @@ export const useSchool = (id: string | undefined) => {
 };
 
 export const useSchoolChecklist = (schoolId: string | undefined) => {
-  const qc = useQueryClient();
   const query = useQuery<SchoolChecklist | null>({
     queryKey: schoolId ? queryKeys.schoolChecklist(schoolId) : ['school-checklist', 'none'],
     queryFn: async () => {
@@ -151,25 +185,17 @@ export const useSchoolChecklist = (schoolId: string | undefined) => {
     enabled: !!schoolId && isSupabaseConfigured(),
   });
 
-  useEffect(() => {
-    if (!schoolId || !isSupabaseConfigured()) return;
-    const channel = subscribeToTable(
-      qc,
-      `checklist-realtime-${schoolId}`,
-      'school_checklists',
-      queryKeys.schoolChecklist(schoolId),
-      `school_id=eq.${schoolId}`,
-    );
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [schoolId, qc]);
+  useRealtimeSubscription(
+    schoolId ? `checklist-realtime-${schoolId}` : 'checklist-realtime-none',
+    'school_checklists',
+    schoolId ? queryKeys.schoolChecklist(schoolId) : ['school-checklist', 'none'],
+    schoolId ? `school_id=eq.${schoolId}` : undefined,
+  );
 
   return query;
 };
 
 export const useVisits = (options?: Partial<UseQueryOptions<SchoolVisit[]>>) => {
-  const qc = useQueryClient();
   const query = useQuery<SchoolVisit[]>({
     queryKey: queryKeys.visits,
     queryFn: async () => {
@@ -181,13 +207,7 @@ export const useVisits = (options?: Partial<UseQueryOptions<SchoolVisit[]>>) => 
     ...options,
   });
 
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    const channel = subscribeToTable(qc, 'visits-realtime', 'school_visits', queryKeys.visits);
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [qc]);
+  useRealtimeSubscription('visits-realtime', 'school_visits', queryKeys.visits);
 
   return query;
 };
@@ -206,7 +226,6 @@ export const useVisit = (id: string | undefined) => {
 };
 
 export const useDailyLogs = (options?: Partial<UseQueryOptions<DailyLog[]>>) => {
-  const qc = useQueryClient();
   const query = useQuery<DailyLog[]>({
     queryKey: queryKeys.logs,
     queryFn: async () => {
@@ -218,19 +237,12 @@ export const useDailyLogs = (options?: Partial<UseQueryOptions<DailyLog[]>>) => 
     ...options,
   });
 
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    const channel = subscribeToTable(qc, 'logs-realtime', 'daily_logs', queryKeys.logs);
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [qc]);
+  useRealtimeSubscription('logs-realtime', 'daily_logs', queryKeys.logs);
 
   return query;
 };
 
 export const useEscalations = (options?: Partial<UseQueryOptions<Escalation[]>>) => {
-  const qc = useQueryClient();
   const query = useQuery<Escalation[]>({
     queryKey: queryKeys.escalations,
     queryFn: async () => {
@@ -245,13 +257,7 @@ export const useEscalations = (options?: Partial<UseQueryOptions<Escalation[]>>)
     ...options,
   });
 
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    const channel = subscribeToTable(qc, 'escalations-realtime', 'escalations', queryKeys.escalations);
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [qc]);
+  useRealtimeSubscription('escalations-realtime', 'escalations', queryKeys.escalations);
 
   return query;
 };
@@ -486,7 +492,6 @@ export const useSoftDeleteEngineer = () => {
 };
 
 export const useNotifications = () => {
-  const qc = useQueryClient();
   const query = useQuery({
     queryKey: queryKeys.notifications,
     queryFn: async () => {
@@ -501,12 +506,6 @@ export const useNotifications = () => {
     },
     enabled: isSupabaseConfigured(),
   });
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    const channel = subscribeToTable(qc, 'notifications-realtime', 'escalations', queryKeys.notifications);
-    return () => {
-      sb.removeChannel(channel);
-    };
-  }, [qc]);
+  useRealtimeSubscription('notifications-realtime', 'escalations', queryKeys.notifications);
   return query;
 };
