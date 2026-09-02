@@ -11,9 +11,39 @@ export const UpdatePasswordPage = () => {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     document.title = 'Update password | Field Operations';
+    let cancelled = false;
+
+    const init = async () => {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      if (hash.includes('access_token') || hash.includes('type=recovery') || search.includes('code=')) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(
+          window.location.href,
+        );
+        if (cancelled) return;
+        if (!error && data.session) {
+          setReady(true);
+          return;
+        }
+      }
+      const { data } = await supabase.auth.getSession();
+      if (!cancelled) {
+        if (data.session) {
+          setReady(true);
+        } else {
+          setReady(false);
+        }
+      }
+    };
+    init();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,17 +81,23 @@ export const UpdatePasswordPage = () => {
       <div className="card" style={{ width: '100%', maxWidth: 420, padding: 32 }}>
         <h1 style={{ fontSize: 20, marginBottom: 8 }}>Set new password</h1>
         <p className="text-sm text-muted mb-4">Choose a strong password for your account.</p>
-        <form onSubmit={handleSubmit}>
-          <Field label="New password" htmlFor="password" required>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </Field>
-          <Field label="Confirm password" htmlFor="confirm" required>
-            <Input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-          </Field>
-          <Button type="submit" variant="primary" loading={submitting} className="w-full">
-            Update password
-          </Button>
-        </form>
+        {!ready ? (
+          <div className="banner banner-danger">
+            Recovery link is invalid or expired. Please request a new password reset link from the sign-in page.
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <Field label="New password" htmlFor="password" required>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </Field>
+            <Field label="Confirm password" htmlFor="confirm" required>
+              <Input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+            </Field>
+            <Button type="submit" variant="primary" loading={submitting} className="w-full">
+              Update password
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   );
