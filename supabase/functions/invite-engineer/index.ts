@@ -42,24 +42,27 @@ serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Verify caller is admin or team_lead using the user's JWT
+  // Verify caller is admin or team_lead using the user's JWT.
+  // Use the ANON key client with user's bearer token (standard pattern).
   const authHeader = req.headers.get('Authorization') ?? '';
-  console.log('invite-engineer: auth header present?', !!authHeader, 'len:', authHeader.length);
+  const apikeyHeader = req.headers.get('apikey') ?? '';
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? apikeyHeader;
+  console.log('invite-engineer: anon key present?', !!anonKey, 'anon len:', anonKey.length);
 
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-      status: 401,
+  if (!anonKey) {
+    return new Response(JSON.stringify({ error: 'Server misconfigured: no anon key' }), {
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
-  // Use the service role client with the user's JWT to verify
-  const callerClient = createClient(supabaseUrl, serviceRoleKey, {
+  // Two clients: one to verify user (anon + user bearer), one to do privileged ops (service role).
+  const verifyClient = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
     global: { headers: { Authorization: authHeader } },
   });
-  const { data: caller, error: userErr } = await callerClient.auth.getUser();
-  console.log('invite-engineer: getUser result', { hasUser: !!caller?.user, errMsg: userErr?.message });
+  const { data: caller, error: userErr } = await verifyClient.auth.getUser();
+  console.log('invite-engineer: getUser result', { hasUser: !!caller?.user, errMsg: userErr?.message, userId: caller?.user?.id });
   if (userErr || !caller?.user) {
     return new Response(JSON.stringify({ error: 'Unauthorized', detail: userErr?.message }), {
       status: 401,
