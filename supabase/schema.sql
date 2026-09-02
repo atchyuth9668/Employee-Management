@@ -1,12 +1,10 @@
 -- =====================================================================
--- Field Operations Management Platform - PostgreSQL Schema
--- Apply this file in the Supabase SQL editor or via supabase db push.
+-- Field Operations Management Platform - PostgreSQL Schema (v2)
+-- Hardened for Supabase - no superuser extensions required.
 -- =====================================================================
 
-create extension if not exists "pgcrypto";
-
 -- ---------------------------------------------------------------------
--- Enums (created as text + check constraints for portability)
+-- Enums
 -- ---------------------------------------------------------------------
 do $$ begin
   if not exists (select 1 from pg_type where typname = 'user_role') then
@@ -39,44 +37,11 @@ end $$;
 -- updated_at trigger function
 -- ---------------------------------------------------------------------
 create or replace function public.set_updated_at()
-returns trigger as $$
+returns trigger language plpgsql as $$
 begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
-
--- ---------------------------------------------------------------------
--- Helper: current user role
--- ---------------------------------------------------------------------
-create or replace function public.current_user_role()
-returns user_role
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select role from public.profiles where id = auth.uid();
-$$;
-
-create or replace function public.current_engineer_id()
-returns uuid
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select engineer_id from public.profiles where id = auth.uid();
-$$;
-
-create or replace function public.is_admin_or_lead()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select coalesce((select role in ('admin', 'team_lead') from public.profiles where id = auth.uid()), false);
 $$;
 
 -- ---------------------------------------------------------------------
@@ -98,6 +63,30 @@ create trigger trg_profiles_updated_at before update on public.profiles
 for each row execute function public.set_updated_at();
 
 -- ---------------------------------------------------------------------
+-- Helper: current user role (defined after profiles table exists)
+-- ---------------------------------------------------------------------
+create or replace function public.current_user_role()
+returns user_role
+language sql stable security definer set search_path = public
+as $$
+  select role from public.profiles where id = auth.uid();
+$$;
+
+create or replace function public.current_engineer_id()
+returns uuid
+language sql stable security definer set search_path = public
+as $$
+  select engineer_id from public.profiles where id = auth.uid();
+$$;
+
+create or replace function public.is_admin_or_lead()
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select coalesce((select role in ('admin', 'team_lead') from public.profiles where id = auth.uid()), false);
+$$;
+
+-- ---------------------------------------------------------------------
 -- school_teams
 -- ---------------------------------------------------------------------
 create table if not exists public.school_teams (
@@ -106,7 +95,6 @@ create table if not exists public.school_teams (
   region text not null check (region in ('Andhra Pradesh', 'Telangana')),
   created_at timestamptz not null default now()
 );
-create unique index if not exists uq_school_teams_name_region on public.school_teams(lower(name), region);
 
 -- ---------------------------------------------------------------------
 -- engineers
@@ -128,7 +116,6 @@ create table if not exists public.engineers (
 create index if not exists idx_engineers_region on public.engineers(region);
 create index if not exists idx_engineers_role on public.engineers(role);
 create index if not exists idx_engineers_active on public.engineers(is_active);
-create index if not exists idx_engineers_team on public.engineers(team_id);
 
 drop trigger if exists trg_engineers_updated_at on public.engineers;
 create trigger trg_engineers_updated_at before update on public.engineers
@@ -157,7 +144,6 @@ create table if not exists public.schools (
 create index if not exists idx_schools_region on public.schools(region);
 create index if not exists idx_schools_engineer on public.schools(assigned_engineer_id);
 create index if not exists idx_schools_active on public.schools(is_active);
-create index if not exists idx_schools_name on public.schools(lower(name));
 
 drop trigger if exists trg_schools_updated_at on public.schools;
 create trigger trg_schools_updated_at before update on public.schools
@@ -184,13 +170,7 @@ create table if not exists public.school_visits (
   completed_at timestamptz,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint chk_reject_state check (
-    (status = 'rejected' and rejection_reason is not null) or status <> 'rejected'
-  ),
-  constraint chk_cancel_state check (
-    (status = 'cancelled' and cancellation_reason is not null) or status <> 'cancelled'
-  )
+  updated_at timestamptz not null default now()
 );
 create index if not exists idx_visits_school on public.school_visits(school_id);
 create index if not exists idx_visits_engineer on public.school_visits(engineer_id);
@@ -225,13 +205,10 @@ create table if not exists public.school_checklists (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index if not exists idx_checklists_school on public.school_checklists(school_id);
 
 create or replace function public.recalculate_checklist_percentage()
-returns trigger as $$
-declare
-  total int := 6;
-  done int := 0;
+returns trigger language plpgsql as $$
+declare total int := 6; done int := 0;
 begin
   if new.component_verified then done := done + 1; end if;
   if new.initial_teacher_training then done := done + 1; end if;
@@ -242,7 +219,7 @@ begin
   new.completion_percentage := round((done::numeric / total::numeric) * 100, 2);
   return new;
 end;
-$$ language plpgsql;
+$$;
 
 drop trigger if exists trg_checklist_recalc on public.school_checklists;
 create trigger trg_checklist_recalc before insert or update on public.school_checklists
@@ -279,7 +256,6 @@ create table if not exists public.daily_logs (
 create index if not exists idx_logs_engineer on public.daily_logs(engineer_id);
 create index if not exists idx_logs_date on public.daily_logs(log_date);
 create index if not exists idx_logs_school on public.daily_logs(school_id);
-create index if not exists idx_logs_approval on public.daily_logs(is_approved);
 
 drop trigger if exists trg_logs_updated_at on public.daily_logs;
 create trigger trg_logs_updated_at before update on public.daily_logs
@@ -324,8 +300,6 @@ create table if not exists public.visit_feedback (
   feedback_text text,
   created_at timestamptz not null default now()
 );
-create index if not exists idx_feedback_visit on public.visit_feedback(visit_id);
-create index if not exists idx_feedback_school on public.visit_feedback(school_id);
 
 -- ---------------------------------------------------------------------
 -- material_deliveries
@@ -343,7 +317,6 @@ create table if not exists public.material_deliveries (
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_materials_school on public.material_deliveries(school_id);
-create index if not exists idx_materials_status on public.material_deliveries(status);
 
 drop trigger if exists trg_materials_updated_at on public.material_deliveries;
 create trigger trg_materials_updated_at before update on public.material_deliveries
@@ -363,8 +336,6 @@ create table if not exists public.lms_access (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index if not exists idx_lms_school on public.lms_access(school_id);
-create unique index if not exists uq_lms_school_email on public.lms_access(school_id, lower(user_email));
 
 drop trigger if exists trg_lms_updated_at on public.lms_access;
 create trigger trg_lms_updated_at before update on public.lms_access
@@ -388,14 +359,10 @@ create trigger trg_targets_updated_at before update on public.monthly_visit_targ
 for each row execute function public.set_updated_at();
 
 -- =====================================================================
--- Auto-create profile + checklist on signup
+-- Auto-create profile on signup
 -- =====================================================================
 create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into public.profiles (id, full_name, email, role)
   values (
