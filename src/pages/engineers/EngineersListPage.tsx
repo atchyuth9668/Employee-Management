@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Download, Upload } from 'lucide-react';
-import { useEngineers, useCreateEngineer, useUpdateEngineer, useSoftDeleteEngineer } from '../../services/api';
+import { useEngineers, useCreateEngineer, useUpdateEngineer } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
 import { supabase } from '../../lib/supabase';
@@ -21,7 +21,6 @@ export const EngineersListPage = () => {
   const { data: engineers = [], isLoading } = useEngineers();
   const create = useCreateEngineer();
   const update = useUpdateEngineer();
-  const softDelete = useSoftDeleteEngineer();
   const { success, error: showError } = useToast();
 
   const [open, setOpen] = useState(false);
@@ -84,6 +83,7 @@ export const EngineersListPage = () => {
       } else {
         const { error: fnErr } = await supabase.functions.invoke('invite-engineer', {
           body: {
+            action: 'invite',
             full_name: form.full_name,
             email: form.email,
             phone: form.phone || null,
@@ -105,12 +105,25 @@ export const EngineersListPage = () => {
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
-      await softDelete.mutateAsync(deleteId);
-      success('Engineer archived', 'Operational history preserved');
+      await supabase.functions.invoke('invite-engineer', {
+        body: { action: 'set_status', engineer_id: deleteId, is_active: false },
+      });
+      success('Engineer deactivated', 'They can no longer sign in. Re-activate to restore access.');
     } catch (err) {
       showError('Failed to archive', err instanceof Error ? err.message : 'Unexpected error');
     } finally {
       setDeleteId(null);
+    }
+  };
+
+  const handleToggleActive = async (id: string, isActive: boolean) => {
+    try {
+      await supabase.functions.invoke('invite-engineer', {
+        body: { action: 'set_status', engineer_id: id, is_active: isActive },
+      });
+      success(isActive ? 'Engineer activated' : 'Engineer deactivated', isActive ? 'They can sign in again.' : 'They can no longer sign in.');
+    } catch (err) {
+      showError('Update failed', err instanceof Error ? err.message : 'Unexpected error');
     }
   };
 
@@ -255,7 +268,16 @@ export const EngineersListPage = () => {
                     <td>{e.phone ?? '—'}</td>
                     <td>{e.region}</td>
                     <td><Badge variant={e.role === 'admin' ? 'accent' : e.role === 'team_lead' ? 'info' : 'neutral'}>{ROLE_LABELS[e.role]}</Badge></td>
-                    <td><Badge variant={e.is_active ? 'success' : 'neutral'}>{e.is_active ? 'Active' : 'Inactive'}</Badge></td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant={e.is_active ? 'success' : 'secondary'}
+                        onClick={() => handleToggleActive(e.id, !e.is_active)}
+                        aria-label={e.is_active ? 'Deactivate' : 'Activate'}
+                      >
+                        {e.is_active ? 'Active' : 'Inactive'}
+                      </Button>
+                    </td>
                     <td>
                       <div className="flex gap-1">
                         <Link to={`/engineers/${e.id}`}><Button size="sm" variant="ghost">View</Button></Link>
@@ -324,12 +346,12 @@ export const EngineersListPage = () => {
 
       <ConfirmDialog
         open={!!deleteId}
-        title="Archive engineer?"
-        description="Engineer will be hidden from operational lists. Their visits, logs, and escalations remain intact."
-        confirmLabel="Archive"
+        title="Deactivate engineer?"
+        description="They will be marked inactive and will not be able to sign in. Their visits, logs, and escalations remain intact. You can re-activate later from the Status column."
+        confirmLabel="Deactivate"
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
-        loading={softDelete.isPending}
+        loading={false}
       />
     </div>
   );
