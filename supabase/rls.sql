@@ -111,7 +111,7 @@ for select using (
     or exists (
       select 1 from public.schools s
       where s.id = school_checklists.school_id
-        and s.assigned_engineer_id = public.current_engineer_id()
+        and s.region = public.current_engineer_region()
     )
   )
 );
@@ -123,14 +123,14 @@ for all using (
   or exists (
     select 1 from public.schools s
     where s.id = school_checklists.school_id
-      and s.assigned_engineer_id = public.current_engineer_id()
+      and s.region = public.current_engineer_region()
   )
 ) with check (
   public.is_admin_or_lead()
   or exists (
     select 1 from public.schools s
     where s.id = school_checklists.school_id
-      and s.assigned_engineer_id = public.current_engineer_id()
+      and s.region = public.current_engineer_region()
   )
 );
 

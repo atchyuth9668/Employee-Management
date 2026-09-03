@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../providers/AuthProvider';
-import { useSchools, useVisits } from '../../services/api';
+import { useEngineers, useSchools, useVisits } from '../../services/api';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -17,6 +17,7 @@ export const ProfilePage = () => {
   const { success } = useToast();
   const { data: schools = [] } = useSchools();
   const { data: visits = [] } = useVisits();
+  const { data: engineers = [] } = useEngineers();
   const [pwdOpen, setPwdOpen] = useState(false);
   const [pwd, setPwd] = useState('');
   const [pwdConfirm, setPwdConfirm] = useState('');
@@ -26,7 +27,11 @@ export const ProfilePage = () => {
   }, []);
 
   const myEngineerId = profile?.engineer_id ?? null;
-  const assigned = useMemo(() => schools.filter((s) => s.assigned_engineer_id === myEngineerId), [schools, myEngineerId]);
+  const myEngineer = useMemo(() => engineers.find((e) => e.id === myEngineerId) ?? null, [engineers, myEngineerId]);
+  const assigned = useMemo(
+    () => (myEngineer ? schools.filter((s) => s.region === myEngineer.region && s.is_active) : schools),
+    [schools, myEngineer],
+  );
   const monthStart = startOfMonth();
   const visitsThisMonth = visits.filter((v) => v.engineer_id === myEngineerId && withinRange(v.visit_date, monthStart, addDays(monthStart, 31)));
   const completedVisits = visitsThisMonth.filter((v) => v.status === 'completed').length;

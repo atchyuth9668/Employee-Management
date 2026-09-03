@@ -296,13 +296,13 @@ useEffect(() => {
                   {engineers.map((e) => {
                     const myVisits = visitsInRange.filter((v) => v.engineer_id === e.id);
                     const completed = myVisits.filter((v) => v.status === 'completed').length;
-                    const assignedSchools = schools.filter((s) => s.assigned_engineer_id === e.id).length;
+                    const regionSchools = schools.filter((s) => s.region === e.region).length;
                     const myLogs = logsInRange.filter((l) => l.engineer_id === e.id).length;
-                    const pct = assignedSchools === 0 ? 0 : Math.round((completed / assignedSchools) * 100);
+                    const pct = regionSchools === 0 ? 0 : Math.min(100, Math.round((completed / regionSchools) * 100));
                     return (
                       <tr key={e.id}>
                         <td>{e.full_name}</td>
-                        <td>{assignedSchools}</td>
+                        <td>{regionSchools}</td>
                         <td>{myVisits.length}</td>
                         <td>{myLogs}</td>
                         <td><ProgressBar value={pct} showLabel /></td>

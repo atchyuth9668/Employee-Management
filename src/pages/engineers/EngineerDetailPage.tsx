@@ -22,7 +22,10 @@ export const EngineerDetailPage = () => {
     document.title = engineer ? `${engineer.full_name} | Field Operations` : 'Engineer | Field Operations';
   }, [engineer]);
 
-  const assigned = useMemo(() => schools.filter((s) => s.assigned_engineer_id === id), [schools, id]);
+  const assigned = useMemo(
+    () => (engineer ? schools.filter((s) => s.region === engineer.region && s.is_active) : []),
+    [schools, engineer],
+  );
   const myVisits = useMemo(() => visits.filter((v) => v.engineer_id === id), [visits, id]);
   const completedVisits = myVisits.filter((v) => v.status === 'completed').length;
   const myLogs = logs.filter((l) => l.engineer_id === id);
@@ -63,7 +66,7 @@ export const EngineerDetailPage = () => {
 
       <div className="grid grid-cols-2">
         <Card>
-          <CardHeader title="Assigned Schools" />
+          <CardHeader title={`Schools in ${engineer.region}`} />
           <CardBody>
             {assigned.length === 0 ? <div className="text-muted text-sm">No assigned schools.</div> : (
               <div>

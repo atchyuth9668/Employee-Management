@@ -47,10 +47,10 @@ select
   e.region,
   e.role,
   e.is_active,
-  (
+    (
     select count(*) from public.schools s
-    where s.assigned_engineer_id = e.id and s.deleted_at is null
-  ) as assigned_schools,
+    where s.region = e.region and s.deleted_at is null
+  ) as region_schools,
   (
     select count(*) from public.school_visits v
     where v.engineer_id = e.id and v.status = 'completed'

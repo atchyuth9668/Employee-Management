@@ -33,11 +33,12 @@ export const OverviewPage = () => {
   }, []);
 
   const myEngineerId = profile?.engineer_id ?? null;
+  const myEngineer = useMemo(() => engineers.find((e) => e.id === myEngineerId) ?? null, [engineers, myEngineerId]);
 
   const scopedSchools = useMemo(() => {
-    if (!isEngineer || !myEngineerId) return schools;
-    return schools.filter((s) => s.assigned_engineer_id === myEngineerId);
-  }, [schools, isEngineer, myEngineerId]);
+    if (!isEngineer || !myEngineer) return schools;
+    return schools.filter((s) => s.region === myEngineer.region);
+  }, [schools, isEngineer, myEngineer]);
 
   const scopedLogs = useMemo(() => {
     if (!isEngineer || !myEngineerId) return logs;
