@@ -86,6 +86,13 @@ as $$
   select coalesce((select role in ('admin', 'team_lead') from public.profiles where id = auth.uid()), false);
 $$;
 
+create or replace function public.current_engineer_region()
+returns text
+language sql stable security definer set search_path = public
+as $$
+  select region from public.engineers where id = public.current_engineer_id();
+$$;
+
 -- ---------------------------------------------------------------------
 -- school_teams
 -- ---------------------------------------------------------------------
