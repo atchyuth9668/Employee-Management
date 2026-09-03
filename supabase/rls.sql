@@ -165,7 +165,10 @@ with check (
 
 drop policy if exists logs_admin_approval on public.daily_logs;
 create policy logs_admin_approval on public.daily_logs
-for update using (public.is_admin_or_lead() and engineer_id <> public.current_engineer_id())
+for update using (
+  public.is_admin_or_lead()
+  and (public.current_engineer_id() is null or engineer_id <> public.current_engineer_id())
+)
 with check (public.is_admin_or_lead());
 
 -- ---------------------------------------------------------------------

@@ -14,6 +14,15 @@ create policy escalations_admin_update on public.escalations
 for update using (public.is_admin_or_lead())
 with check (public.is_admin_or_lead());
 
+-- daily_logs: relax admin approval to allow admins who don't have an engineer_id
+drop policy if exists logs_admin_approval on public.daily_logs;
+create policy logs_admin_approval on public.daily_logs
+for update using (
+  public.is_admin_or_lead()
+  and (public.current_engineer_id() is null or engineer_id <> public.current_engineer_id())
+)
+with check (public.is_admin_or_lead());
+
 -- schools
 drop policy if exists schools_select on public.schools;
 create policy schools_select on public.schools
