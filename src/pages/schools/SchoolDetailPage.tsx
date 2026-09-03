@@ -97,9 +97,11 @@ export const SchoolDetailPage = () => {
         <Button variant="secondary" onClick={() => setEscalationOpen(true)}>
           <AlertTriangle size={14} /> Report Issue
         </Button>
-        <Button variant="secondary" onClick={() => setVisitOpen(true)}>
-          <CalendarCheck size={14} /> Assign Visit
-        </Button>
+        {canManageSchools && (
+          <Button variant="secondary" onClick={() => setVisitOpen(true)}>
+            <CalendarCheck size={14} /> Assign Visit
+          </Button>
+        )}
         {canManageSchools && (
           <Link to={`/schools/${school.id}/edit`}>
             <Button variant="secondary">
@@ -136,7 +138,9 @@ export const SchoolDetailPage = () => {
             <CardBody>
               <KV label="SPOC Name" value={school.spoc_name} />
               <KV label="Contact" value={school.spoc_contact} />
-              <KV label="Assigned Engineer" value={engineer?.full_name ?? 'Unassigned'} />
+              {canManageSchools && (
+                <KV label="Assigned Engineer" value={engineer?.full_name ?? 'Unassigned'} />
+              )}
             </CardBody>
           </Card>
           <Card>
@@ -291,6 +295,7 @@ const Timeline = ({ items }: { items: { id: string; date: string; title: string;
 const SchoolEditModal = ({ open, schoolId, onClose }: { open: boolean; schoolId: string; onClose: () => void }) => {
   const { data: school } = useSchool(schoolId);
   const { data: engineers = [] } = useEngineers();
+  const { canManageSchools } = useAuth();
   const update = useUpdateSchool();
   const { success, error: showError } = useToast();
   const [form, setForm] = useState({
@@ -320,18 +325,18 @@ const SchoolEditModal = ({ open, schoolId, onClose }: { open: boolean; schoolId:
   if (!school) return null;
   const submit = async () => {
     try {
-      await update.mutateAsync({
-        id: schoolId,
-        updates: {
-          name: form.name,
-          spoc_name: form.spoc_name,
-          spoc_contact: form.spoc_contact,
-          location: form.location,
-          area: form.area,
-          maps_link: form.maps_link || null,
-          assigned_engineer_id: form.assigned_engineer_id || null,
-        },
-      });
+      const updates: Record<string, unknown> = {
+        name: form.name,
+        spoc_name: form.spoc_name,
+        spoc_contact: form.spoc_contact,
+        location: form.location,
+        area: form.area,
+        maps_link: form.maps_link || null,
+      };
+      if (canManageSchools) {
+        updates.assigned_engineer_id = form.assigned_engineer_id || null;
+      }
+      await update.mutateAsync({ id: schoolId, updates });
       success('School updated', 'Changes saved successfully');
       onClose();
     } catch (err) {
@@ -361,14 +366,16 @@ const SchoolEditModal = ({ open, schoolId, onClose }: { open: boolean; schoolId:
       </div>
       <Field label="Location"><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></Field>
       <Field label="Maps link"><Input value={form.maps_link} onChange={(e) => setForm({ ...form, maps_link: e.target.value })} /></Field>
-      <Field label="Assigned engineer">
-        <Select value={form.assigned_engineer_id} onChange={(e) => setForm({ ...form, assigned_engineer_id: e.target.value })}>
-          <option value="">Unassigned</option>
-          {engineers.filter((e) => e.is_active).map((e) => (
-            <option key={e.id} value={e.id}>{e.full_name}</option>
-          ))}
-        </Select>
-      </Field>
+      {canManageSchools && (
+        <Field label="Assigned engineer">
+          <Select value={form.assigned_engineer_id} onChange={(e) => setForm({ ...form, assigned_engineer_id: e.target.value })}>
+            <option value="">Unassigned</option>
+            {engineers.filter((e) => e.is_active).map((e) => (
+              <option key={e.id} value={e.id}>{e.full_name}</option>
+            ))}
+          </Select>
+        </Field>
+      )}
     </Modal>
   );
 };
