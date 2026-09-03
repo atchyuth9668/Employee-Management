@@ -76,7 +76,8 @@ useEffect(() => {
   }, [schools, visitsInRange, logsInRange, schoolById, checklistMap]);
 
   const exportVisits = () => {
-    const rows = visitsInRange.map((v) => ({
+    const completed = visitsInRange.filter((v) => v.status === 'completed');
+    const rows = completed.map((v) => ({
       date: v.visit_date,
       school: schoolById.get(v.school_id)?.name ?? '',
       engineer: engineerById.get(v.engineer_id)?.full_name ?? '',
@@ -84,7 +85,7 @@ useEffect(() => {
       reason: v.reason,
       notes: v.notes ?? '',
     }));
-    downloadCsv('visits.csv', toCsv(rows, [
+    downloadCsv('visits-completed.csv', toCsv(rows, [
       { key: 'date', label: 'Date' },
       { key: 'school', label: 'School' },
       { key: 'engineer', label: 'Engineer' },
@@ -346,10 +347,10 @@ useEffect(() => {
             <div className="flex flex-col gap-2">
               <Button variant="secondary" onClick={exportDaily}><Download size={14} /> Download Daily Report (CSV)</Button>
               <Button variant="secondary" onClick={exportMonthly}><Download size={14} /> Download Monthly Report (CSV)</Button>
-              <Button variant="secondary" onClick={exportVisits}><Download size={14} /> Download Visit Report (CSV)</Button>
+              <Button variant="secondary" onClick={exportVisits}><Download size={14} /> Download Completed Visits (CSV)</Button>
             </div>
             <div className="divider" />
-            <div className="text-xs text-muted">Currently exporting the filtered dataset ({visitsInRange.length} visits, {logsInRange.length} logs).</div>
+            <div className="text-xs text-muted">Visits export includes only completed visits. Daily and monthly reports include all activities in range.</div>
           </CardBody>
         </Card>
       </div>
