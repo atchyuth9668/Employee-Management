@@ -181,8 +181,8 @@ for insert with check (auth.role() = 'authenticated');
 
 drop policy if exists escalations_admin_update on public.escalations;
 create policy escalations_admin_update on public.escalations
-for update using (public.is_admin_or_lead() or engineer_id = public.current_engineer_id())
-with check (public.is_admin_or_lead() or engineer_id = public.current_engineer_id());
+for update using (public.is_admin_or_lead())
+with check (public.is_admin_or_lead());
 
 -- ---------------------------------------------------------------------
 -- visit_feedback, material_deliveries, lms_access, monthly_visit_targets

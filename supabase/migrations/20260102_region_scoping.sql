@@ -8,6 +8,12 @@ $$;
 
 grant execute on function public.current_engineer_region() to authenticated;
 
+-- escalations: only admin/team_lead can update status (start, resolve, close)
+drop policy if exists escalations_admin_update on public.escalations;
+create policy escalations_admin_update on public.escalations
+for update using (public.is_admin_or_lead())
+with check (public.is_admin_or_lead());
+
 -- schools
 drop policy if exists schools_select on public.schools;
 create policy schools_select on public.schools

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useEscalation, useSchools, useEngineers, useUpdateEscalation } from '../../services/api';
+import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -14,6 +15,7 @@ import { formatDateTime } from '../../utils/date';
 export const EscalationDetailPage = () => {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { canManageSchools } = useAuth();
   const { data: escalation, isLoading } = useEscalation(id);
   const { data: schools = [] } = useSchools();
   const { data: engineers = [] } = useEngineers();
@@ -73,19 +75,34 @@ export const EscalationDetailPage = () => {
         <Card>
           <CardHeader title="Update" />
           <CardBody>
-            <p className="text-xs text-muted mb-2">Resolution notes</p>
-            <Textarea value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} />
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {escalation.status === 'open' && (
-                <Button variant="primary" onClick={() => advance('in_progress')} loading={update.isPending}>Start working</Button>
-              )}
-              {(escalation.status === 'open' || escalation.status === 'in_progress') && (
-                <Button variant="success" onClick={() => advance('resolved')} loading={update.isPending}>Mark resolved</Button>
-              )}
-              {escalation.status === 'resolved' && (
-                <Button variant="secondary" onClick={() => advance('closed')} loading={update.isPending}>Close</Button>
-              )}
-            </div>
+            {canManageSchools ? (
+              <>
+                <p className="text-xs text-muted mb-2">Resolution notes</p>
+                <Textarea value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} />
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  {escalation.status === 'open' && (
+                    <Button variant="primary" onClick={() => advance('in_progress')} loading={update.isPending}>Start working</Button>
+                  )}
+                  {(escalation.status === 'open' || escalation.status === 'in_progress') && (
+                    <Button variant="success" onClick={() => advance('resolved')} loading={update.isPending}>Mark resolved</Button>
+                  )}
+                  {escalation.status === 'resolved' && (
+                    <Button variant="secondary" onClick={() => advance('closed')} loading={update.isPending}>Close</Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-muted">
+                {escalation.resolution_notes ? (
+                  <>
+                    <div className="font-medium mb-1" style={{ color: 'var(--fg)' }}>Resolution notes</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{escalation.resolution_notes}</div>
+                  </>
+                ) : (
+                  <p style={{ margin: 0 }}>Waiting for admin/team lead to start and resolve this escalation.</p>
+                )}
+              </div>
+            )}
           </CardBody>
         </Card>
       </div>
