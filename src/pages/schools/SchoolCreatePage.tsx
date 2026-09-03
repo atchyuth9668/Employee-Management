@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useEngineers, useCreateSchool } from '../../services/api';
+import { useCreateSchool } from '../../services/api';
 import { useToast } from '../../providers/ToastProvider';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -16,9 +16,6 @@ interface FormState {
   region: string;
   area: string;
   maps_link: string;
-  assigned_engineer_id: string;
-  latitude: string;
-  longitude: string;
 }
 
 const initial: FormState = {
@@ -29,15 +26,11 @@ const initial: FormState = {
   region: REGIONS[0],
   area: '',
   maps_link: '',
-  assigned_engineer_id: '',
-  latitude: '',
-  longitude: '',
 };
 
 export const SchoolCreatePage = () => {
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
-  const { data: engineers = [] } = useEngineers();
   const create = useCreateSchool();
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
@@ -59,16 +52,7 @@ export const SchoolCreatePage = () => {
     if (!form.location.trim()) e.location = 'Location is required';
     if (!form.region) e.region = 'Region is required';
     if (!form.area.trim()) e.area = 'Area is required';
-    if (!form.assigned_engineer_id) e.assigned_engineer_id = 'Assign an engineer';
     if (form.maps_link && !/^https?:\/\//i.test(form.maps_link)) e.maps_link = 'Maps link must be a valid URL';
-    if (form.latitude) {
-      const n = parseFloat(form.latitude);
-      if (Number.isNaN(n) || n < -90 || n > 90) e.latitude = 'Latitude must be between -90 and 90';
-    }
-    if (form.longitude) {
-      const n = parseFloat(form.longitude);
-      if (Number.isNaN(n) || n < -180 || n > 180) e.longitude = 'Longitude must be between -180 and 180';
-    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -89,9 +73,6 @@ export const SchoolCreatePage = () => {
           region: form.region,
           area: form.area.trim(),
           maps_link: form.maps_link.trim() || null,
-          assigned_engineer_id: form.assigned_engineer_id || null,
-          latitude: form.latitude ? parseFloat(form.latitude) : null,
-          longitude: form.longitude ? parseFloat(form.longitude) : null,
           is_active: true,
         },
       });
@@ -107,7 +88,7 @@ export const SchoolCreatePage = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">Add School</h1>
-          <div className="page-subtitle">Initial checklist will be created automatically</div>
+          <div className="page-subtitle">Initial checklist will be created automatically. Engineers will be assigned per visit.</div>
         </div>
       </div>
 
@@ -134,32 +115,14 @@ export const SchoolCreatePage = () => {
             <Field label="Location" htmlFor="location" required error={errors.location} help="Street address, city, district">
               <Input id="location" value={form.location} onChange={update('location')} />
             </Field>
-            <div className="form-row">
-              <Field label="Region" htmlFor="region" required error={errors.region}>
-                <Select id="region" value={form.region} onChange={update('region')}>
-                  {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </Select>
-              </Field>
-              <Field label="Assigned engineer" htmlFor="assigned_engineer_id" required error={errors.assigned_engineer_id}>
-                <Select id="assigned_engineer_id" value={form.assigned_engineer_id} onChange={update('assigned_engineer_id')}>
-                  <option value="">Select engineer</option>
-                  {engineers.filter((e) => e.is_active).map((e) => (
-                    <option key={e.id} value={e.id}>{e.full_name} · {e.region}</option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            <div className="form-row">
-              <Field label="Google Maps link" htmlFor="maps_link" error={errors.maps_link}>
-                <Input id="maps_link" value={form.maps_link} onChange={update('maps_link')} placeholder="https://maps.google.com/..." />
-              </Field>
-              <Field label="Latitude / Longitude" htmlFor="latitude" error={errors.latitude || errors.longitude}>
-                <div className="flex gap-2">
-                  <Input id="latitude" value={form.latitude} onChange={update('latitude')} placeholder="Latitude" />
-                  <Input value={form.longitude} onChange={update('longitude')} placeholder="Longitude" />
-                </div>
-              </Field>
-            </div>
+            <Field label="Region" htmlFor="region" required error={errors.region}>
+              <Select id="region" value={form.region} onChange={update('region')}>
+                {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </Select>
+            </Field>
+            <Field label="Google Maps link" htmlFor="maps_link" error={errors.maps_link} help="Used to navigate to the school from visits and reports">
+              <Input id="maps_link" value={form.maps_link} onChange={update('maps_link')} placeholder="https://maps.google.com/..." />
+            </Field>
 
             <div className="flex justify-end gap-2 mt-4">
               <Button type="button" variant="secondary" onClick={() => navigate(-1)}>Cancel</Button>

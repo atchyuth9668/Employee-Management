@@ -278,7 +278,7 @@ export const useEscalation = (id: string | undefined) => {
 export const useCreateSchool = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { school: Omit<School, 'id' | 'created_at' | 'updated_at' | 'deleted_at'> }) => {
+    mutationFn: async (input: { school: Omit<School, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'latitude' | 'longitude' | 'assigned_engineer_id'> & Partial<Pick<School, 'latitude' | 'longitude' | 'assigned_engineer_id'>> }) => {
       const { data: school, error } = await sb.from('schools').insert(input.school).select('*').single();
       if (error) throw error;
       const { error: clErr } = await sb.from('school_checklists').insert({ school_id: (school as School).id });
