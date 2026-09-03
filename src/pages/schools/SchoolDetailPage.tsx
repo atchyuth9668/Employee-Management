@@ -210,6 +210,7 @@ export const SchoolDetailPage = () => {
                   <thead>
                     <tr>
                       <th>Date</th>
+                      <th>Engineer</th>
                       <th>Reason</th>
                       <th>Status</th>
                       <th>Notes</th>
@@ -219,6 +220,7 @@ export const SchoolDetailPage = () => {
                     {schoolVisits.map((v) => (
                       <tr key={v.id}>
                         <td>{v.visit_date}</td>
+                        <td>{engineers.find((e) => e.id === v.engineer_id)?.full_name ?? '—'}</td>
                         <td>{v.reason}</td>
                         <td><Badge variant={v.status === 'completed' ? 'success' : v.status === 'rejected' || v.status === 'cancelled' ? 'danger' : 'info'}>{v.status}</Badge></td>
                         <td className="truncate" style={{ maxWidth: 220 }}>{v.notes ?? '—'}</td>
