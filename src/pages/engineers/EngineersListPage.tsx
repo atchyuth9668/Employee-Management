@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, Trash2, Download, Upload } from 'lucide-react';
+import { Plus, Pencil, Power, Download, Upload, UserX } from 'lucide-react';
 import { useEngineers, useCreateEngineer, useUpdateEngineer } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
@@ -27,6 +27,8 @@ export const EngineersListPage = () => {
   const [editing, setEditing] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [hardDeleteId, setHardDeleteId] = useState<string | null>(null);
+  const [hardDeleteConfirm, setHardDeleteConfirm] = useState('');
   const [form, setForm] = useState({
     full_name: '', email: '', phone: '', region: REGIONS[0] as 'Andhra Pradesh' | 'Telangana', role: 'engineer' as 'admin' | 'team_lead' | 'engineer' | 'viewer',
   });
@@ -113,6 +115,31 @@ export const EngineersListPage = () => {
       showError('Failed to archive', err instanceof Error ? err.message : 'Unexpected error');
     } finally {
       setDeleteId(null);
+    }
+  };
+
+  const handleHardDelete = async () => {
+    if (!hardDeleteId) return;
+    const target = engineers.find((x) => x.id === hardDeleteId);
+    if (!target) {
+      setHardDeleteId(null);
+      return;
+    }
+    if (hardDeleteConfirm.trim().toLowerCase() !== target.email.toLowerCase()) {
+      showError('Confirmation failed', `Type the engineer's email (${target.email}) to confirm.`);
+      return;
+    }
+    try {
+      const { error: fnErr } = await supabase.functions.invoke('invite-engineer', {
+        body: { action: 'delete', engineer_id: hardDeleteId },
+      });
+      if (fnErr) throw fnErr;
+      success('Engineer deleted', 'Roster record and Supabase auth user permanently removed.');
+    } catch (err) {
+      showError('Delete failed', err instanceof Error ? err.message : 'Unexpected error');
+    } finally {
+      setHardDeleteId(null);
+      setHardDeleteConfirm('');
     }
   };
 
@@ -279,11 +306,12 @@ export const EngineersListPage = () => {
                       </Button>
                     </td>
                     <td>
-                      <div className="flex gap-1">
-                        <Link to={`/engineers/${e.id}`}><Button size="sm" variant="ghost">View</Button></Link>
-                        <Button size="sm" variant="ghost" onClick={() => openEdit(e.id)} aria-label="Edit"><Pencil size={12} /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => setDeleteId(e.id)} aria-label="Archive"><Trash2 size={12} /></Button>
-                      </div>
+                        <div className="flex gap-1">
+                          <Link to={`/engineers/${e.id}`}><Button size="sm" variant="ghost">View</Button></Link>
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(e.id)} aria-label="Edit"><Pencil size={12} /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteId(e.id)} aria-label="Deactivate" title="Deactivate"><Power size={12} /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setHardDeleteId(e.id); setHardDeleteConfirm(''); }} aria-label="Delete permanently" title="Delete permanently" style={{ color: 'var(--danger)' }}><UserX size={12} /></Button>
+                        </div>
                     </td>
                   </tr>
                 ))}
@@ -353,6 +381,39 @@ export const EngineersListPage = () => {
         onCancel={() => setDeleteId(null)}
         loading={false}
       />
+
+      <Modal
+        open={!!hardDeleteId}
+        title="Delete engineer permanently?"
+        onClose={() => { setHardDeleteId(null); setHardDeleteConfirm(''); }}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setHardDeleteId(null); setHardDeleteConfirm(''); }}>Cancel</Button>
+            <Button variant="danger" onClick={handleHardDelete} disabled={hardDeleteConfirm.trim().length === 0}>
+              <UserX size={14} /> Delete forever
+            </Button>
+          </>
+        }
+      >
+        <div className="banner banner-danger mb-3">
+          <strong>Warning:</strong> This permanently removes the engineer from the roster AND deletes their Supabase auth account. They will not be able to sign in ever again.
+        </div>
+        <p className="text-sm mb-3">
+          Type the engineer's email to confirm:
+          <br />
+          <code style={{ background: 'var(--bg-muted)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>
+            {engineers.find((e) => e.id === hardDeleteId)?.email}
+          </code>
+        </p>
+        <Input
+          type="text"
+          value={hardDeleteConfirm}
+          onChange={(e) => setHardDeleteConfirm(e.target.value)}
+          placeholder="Type email to confirm"
+          autoFocus
+        />
+      </Modal>
     </div>
   );
 };

@@ -27,7 +27,12 @@ interface StatusPayload {
   is_active: boolean;
 }
 
-type Payload = InvitePayload | StatusPayload;
+interface DeletePayload {
+  action: 'delete';
+  engineer_id: string;
+}
+
+type Payload = InvitePayload | StatusPayload | DeletePayload;
 
 const getUserIdFromAuthHeader = (authHeader: string): string | null => {
   if (!authHeader.startsWith('Bearer ')) return null;
@@ -202,6 +207,74 @@ serve(async (req: Request) => {
     });
 
     return new Response(JSON.stringify({ engineer, user_id: created.user.id }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // -------- ACTION: delete --------
+  if (payload.action === 'delete') {
+    if (!payload.engineer_id) {
+      return new Response(JSON.stringify({ error: 'engineer_id required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: eng, error: engErr } = await authClient
+      .from('engineers')
+      .select('*')
+      .eq('id', payload.engineer_id)
+      .single();
+    if (engErr || !eng) {
+      return new Response(JSON.stringify({ error: 'Engineer not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Null out references in profiles
+    if (eng.auth_user_id) {
+      await authClient
+        .from('profiles')
+        .update({ engineer_id: null })
+        .eq('id', eng.auth_user_id);
+    }
+
+    // Null out references in operational tables so we can delete the engineer row
+    await Promise.all([
+      authClient.from('school_visits').update({ engineer_id: null as any }).eq('engineer_id', payload.engineer_id),
+      authClient.from('daily_logs').update({ engineer_id: null as any }).eq('engineer_id', payload.engineer_id),
+      authClient.from('escalations').update({ engineer_id: null as any }).eq('engineer_id', payload.engineer_id),
+      authClient.from('escalations').update({ assigned_to: null as any }).eq('assigned_to', payload.engineer_id),
+      authClient.from('material_deliveries').update({ engineer_id: null as any }).eq('engineer_id', payload.engineer_id),
+      authClient.from('schools').update({ assigned_engineer_id: null as any }).eq('assigned_engineer_id', payload.engineer_id),
+    ]);
+
+    // Delete the engineer roster row
+    const { error: delErr } = await authClient
+      .from('engineers')
+      .delete()
+      .eq('id', payload.engineer_id);
+    if (delErr) {
+      return new Response(JSON.stringify({ error: delErr.message }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Delete the auth user (permanently)
+    if (eng.auth_user_id) {
+      const { error: authDelErr } = await authClient.auth.admin.deleteUser(eng.auth_user_id);
+      if (authDelErr) {
+        return new Response(
+          JSON.stringify({ error: `Engineer record deleted but auth user deletion failed: ${authDelErr.message}` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+    }
+
+    return new Response(JSON.stringify({ ok: true, deleted: payload.engineer_id }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
