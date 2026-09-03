@@ -23,34 +23,25 @@ for update using (
 )
 with check (public.is_admin_or_lead());
 
--- schools
+-- schools: any authenticated user can see all non-deleted schools
 drop policy if exists schools_select on public.schools;
 create policy schools_select on public.schools
 for select using (
   auth.role() = 'authenticated'
   and deleted_at is null
-  and (
-    public.is_admin_or_lead()
-    or region = public.current_engineer_region()
-  )
 );
 
--- school_visits: engineers can see visits to schools in their region
+-- school_visits: engineers see all visits (own + others' in their region or any)
 drop policy if exists visits_select on public.school_visits;
 create policy visits_select on public.school_visits
 for select using (
   auth.role() = 'authenticated' and (
     public.is_admin_or_lead()
     or engineer_id = public.current_engineer_id()
-    or exists (
-      select 1 from public.schools s
-      where s.id = school_visits.school_id
-        and s.region = public.current_engineer_region()
-    )
   )
 );
 
--- school_checklists
+-- school_checklists: any authenticated user can read/write checklists of any non-deleted school
 drop policy if exists checklists_select on public.school_checklists;
 create policy checklists_select on public.school_checklists
 for select using (
@@ -58,8 +49,7 @@ for select using (
     public.is_admin_or_lead()
     or exists (
       select 1 from public.schools s
-      where s.id = school_checklists.school_id
-        and s.region = public.current_engineer_region()
+      where s.id = school_checklists.school_id and s.deleted_at is null
     )
   )
 );
@@ -70,14 +60,12 @@ for all using (
   public.is_admin_or_lead()
   or exists (
     select 1 from public.schools s
-    where s.id = school_checklists.school_id
-      and s.region = public.current_engineer_region()
+    where s.id = school_checklists.school_id and s.deleted_at is null
   )
 ) with check (
   public.is_admin_or_lead()
   or exists (
     select 1 from public.schools s
-    where s.id = school_checklists.school_id
-      and s.region = public.current_engineer_region()
+    where s.id = school_checklists.school_id and s.deleted_at is null
   )
 );

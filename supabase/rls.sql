@@ -63,10 +63,6 @@ create policy schools_select on public.schools
 for select using (
   auth.role() = 'authenticated'
   and deleted_at is null
-  and (
-    public.is_admin_or_lead()
-    or region = public.current_engineer_region()
-  )
 );
 
 drop policy if exists schools_admin_write on public.schools;
@@ -82,11 +78,6 @@ for select using (
   auth.role() = 'authenticated' and (
     public.is_admin_or_lead()
     or engineer_id = public.current_engineer_id()
-    or exists (
-      select 1 from public.schools s
-      where s.id = school_visits.school_id
-        and s.region = public.current_engineer_region()
-    )
   )
 );
 
