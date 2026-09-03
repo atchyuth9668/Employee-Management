@@ -733,6 +733,20 @@ input, select, textarea {
   margin: var(--space-4) 0;
 }
 
+.callout {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-elevated, var(--bg-surface));
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--fg);
+  line-height: 1.5;
+}
+.callout-info {
+  border-left-color: var(--info, #3b82f6);
+  background: color-mix(in srgb, var(--info, #3b82f6) 8%, var(--bg-surface));
+}
+
 .section-title {
   font-size: 13px;
   font-weight: 600;

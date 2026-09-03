@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, AlertTriangle, CalendarCheck, Pencil } from 'lucide-react';
+import { ArrowLeft, MapPin, AlertTriangle, CalendarCheck, Pencil, History } from 'lucide-react';
 import { useSchool, useUpdateSchool, useSchoolChecklist, useUpdateChecklistItem, useVisits, useEscalations, useEngineers, useCreateVisit, useCreateEscalation } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
@@ -41,6 +41,7 @@ export const SchoolDetailPage = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [visitOpen, setVisitOpen] = useState(false);
+  const [backfillOpen, setBackfillOpen] = useState(false);
 
   useEffect(() => {
     document.title = school ? `${school.name} | Field Operations` : 'School | Field Operations';
@@ -100,6 +101,11 @@ export const SchoolDetailPage = () => {
         {canManageSchools && (
           <Button variant="secondary" onClick={() => setVisitOpen(true)}>
             <CalendarCheck size={14} /> Assign Visit
+          </Button>
+        )}
+        {canManageSchools && (
+          <Button variant="secondary" onClick={() => setBackfillOpen(true)}>
+            <History size={14} /> Backfill Visit
           </Button>
         )}
         {canManageSchools && (
@@ -264,6 +270,12 @@ export const SchoolDetailPage = () => {
         onClose={() => setVisitOpen(false)}
         schoolId={id}
         defaultEngineerId={engineer?.id ?? ''}
+      />
+
+      <BackfillVisitModal
+        open={backfillOpen}
+        onClose={() => setBackfillOpen(false)}
+        schoolId={id}
       />
     </div>
   );
@@ -512,4 +524,100 @@ const VisitAssignModal = ({ open, onClose, schoolId, defaultEngineerId }: { open
   );
 };
 
-export { VisitAssignModal, EscalationModal, SchoolEditModal };
+const BackfillVisitModal = ({ open, onClose, schoolId }: { open: boolean; onClose: () => void; schoolId: string }) => {
+  const { data: school } = useSchool(schoolId);
+  const { data: engineers = [] } = useEngineers();
+  const { user } = useAuth();
+  const create = useCreateVisit();
+  const { success, error: showError } = useToast();
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    engineer_id: '',
+    visit_date: '',
+    notes: '',
+    next_visit_due: '',
+  });
+  const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
+
+  useEffect(() => {
+    if (open) {
+      setForm({ engineer_id: '', visit_date: '', notes: '', next_visit_due: '' });
+      setErrors({});
+    }
+  }, [open]);
+
+  if (!school) return null;
+
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof typeof form, string>> = {};
+    if (!form.engineer_id) e.engineer_id = 'Engineer is required';
+    if (!form.visit_date) e.visit_date = 'Visit date is required';
+    else if (form.visit_date > today) e.visit_date = 'Visit date cannot be in the future';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const submit = async () => {
+    if (!validate()) return;
+    try {
+      const completedAt = new Date(`${form.visit_date}T12:00:00`).toISOString();
+      await create.mutateAsync({
+        school_id: schoolId,
+        engineer_id: form.engineer_id,
+        visit_date: form.visit_date,
+        next_visit_due: form.next_visit_due || null,
+        reason: 'Backfilled historical visit',
+        notes: form.notes.trim() || null,
+        checklist_items: [],
+        status: 'completed',
+        completed_at: completedAt,
+        created_by: user?.id ?? null,
+      } as Parameters<typeof create.mutateAsync>[0]);
+      success('Visit backfilled', 'The historical visit has been recorded as completed');
+      onClose();
+    } catch (err) {
+      showError('Failed to backfill visit', err instanceof Error ? err.message : 'Unexpected error');
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      title="Backfill Historical Visit"
+      onClose={onClose}
+      size="md"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={submit} loading={create.isPending}>Backfill Visit</Button>
+        </>
+      }
+    >
+      <div className="callout callout-info mb-3" style={{ fontSize: 13 }}>
+        Use this to record a school visit that was completed before this portal was set up.
+        It will be marked as <strong>completed</strong> and will appear in reports and timelines.
+      </div>
+      <Field label="Engineer" required error={errors.engineer_id}>
+        <Select value={form.engineer_id} onChange={(e) => setForm({ ...form, engineer_id: e.target.value })}>
+          <option value="">Select engineer</option>
+          {engineers.filter((e) => e.is_active).map((e) => (
+            <option key={e.id} value={e.id}>{e.full_name} · {e.region}</option>
+          ))}
+        </Select>
+      </Field>
+      <div className="form-row">
+        <Field label="Visit date" required error={errors.visit_date} help="Must be a past date">
+          <Input type="date" max={today} value={form.visit_date} onChange={(e) => setForm({ ...form, visit_date: e.target.value })} />
+        </Field>
+        <Field label="Next visit due">
+          <Input type="date" value={form.next_visit_due} onChange={(e) => setForm({ ...form, next_visit_due: e.target.value })} />
+        </Field>
+      </div>
+      <Field label="What was done" help="Describe the activities, training, or items delivered during this visit">
+        <Textarea rows={4} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Setup robotics lab, trained 3 teachers on LMS, delivered 2 laptops..." />
+      </Field>
+    </Modal>
+  );
+};
+
+export { VisitAssignModal, EscalationModal, SchoolEditModal, BackfillVisitModal };
