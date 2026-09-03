@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, AlertTriangle } from 'lucide-react';
 import { useEscalations, useSchools, useEngineers, useCreateEscalation, useUpdateEscalation } from '../../services/api';
+import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -17,6 +18,7 @@ export const EscalationsListPage = () => {
   const { data: escalations = [], isLoading } = useEscalations();
   const { data: schools = [] } = useSchools();
   const { data: engineers = [] } = useEngineers();
+  const { canManageSchools } = useAuth();
   const create = useCreateEscalation();
   const update = useUpdateEscalation();
   const { success, error: showError } = useToast();
@@ -190,10 +192,10 @@ export const EscalationsListPage = () => {
                       <td>
                         <div className="flex gap-1">
                           <Link to={`/escalations/${e.id}`}><Button size="sm" variant="ghost">View</Button></Link>
-                          {e.status === 'open' && (
+                          {canManageSchools && e.status === 'open' && (
                             <Button size="sm" variant="secondary" onClick={() => setActionTarget({ id: e.id, action: 'progress' })}>Start</Button>
                           )}
-                          {(e.status === 'open' || e.status === 'in_progress') && (
+                          {canManageSchools && (e.status === 'open' || e.status === 'in_progress') && (
                             <Button size="sm" variant="success" onClick={() => setActionTarget({ id: e.id, action: 'resolve' })}>Resolve</Button>
                           )}
                         </div>
