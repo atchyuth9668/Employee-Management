@@ -91,7 +91,25 @@ useEffect(() => {
       { key: 'engineer', label: 'Engineer' },
       { key: 'status', label: 'Status' },
       { key: 'reason', label: 'Reason' },
-      { key: 'notes', label: 'Notes' },
+    ]));
+  };
+
+  const exportAllCompletedVisits = () => {
+    const completed = visits.filter((v) => v.status === 'completed');
+    const rows = completed.map((v) => ({
+      date: v.visit_date,
+      school: schoolById.get(v.school_id)?.name ?? '',
+      engineer: engineerById.get(v.engineer_id)?.full_name ?? '',
+      status: VISIT_STATUS_LABELS[v.status],
+      reason: v.reason,
+      notes: v.notes ?? '',
+    }));
+    downloadCsv('visits-completed-all.csv', toCsv(rows, [
+      { key: 'date', label: 'Date' },
+      { key: 'school', label: 'School' },
+      { key: 'engineer', label: 'Engineer' },
+      { key: 'status', label: 'Status' },
+      { key: 'reason', label: 'Reason' },
     ]));
   };
 
@@ -348,9 +366,12 @@ useEffect(() => {
               <Button variant="secondary" onClick={exportDaily}><Download size={14} /> Download Daily Report (CSV)</Button>
               <Button variant="secondary" onClick={exportMonthly}><Download size={14} /> Download Monthly Report (CSV)</Button>
               <Button variant="secondary" onClick={exportVisits}><Download size={14} /> Download Completed Visits (CSV)</Button>
+              <Button variant="primary" onClick={exportAllCompletedVisits}><Download size={14} /> Download All Completed Visits (CSV)</Button>
             </div>
             <div className="divider" />
-            <div className="text-xs text-muted">Visits export includes only completed visits. Daily and monthly reports include all activities in range.</div>
+            <div className="text-xs text-muted">
+              Completed Visits export uses the selected time range ({visitsInRange.filter((v) => v.status === 'completed').length} visits). All Completed Visits ignores the range and downloads every completed visit ({visits.filter((v) => v.status === 'completed').length} total).
+            </div>
           </CardBody>
         </Card>
       </div>
