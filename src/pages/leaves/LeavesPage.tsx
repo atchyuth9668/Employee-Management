@@ -271,10 +271,10 @@ const ApplyLeaveModal = ({
     >
       <div className="form-row">
         <Field label="From" required>
-          <Input type="date" value={form.start_date} max={form.end_date || undefined} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+          <Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
         </Field>
         <Field label="To" required>
-          <Input type="date" value={form.end_date} min={form.start_date || undefined} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
+          <Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} />
         </Field>
       </div>
       <Field label="Reason" required>
