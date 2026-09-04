@@ -264,7 +264,6 @@ export const SchoolDetailPage = () => {
         open={escalationOpen}
         onClose={() => setEscalationOpen(false)}
         schoolId={id}
-        engineerId={engineer?.id ?? ''}
       />
 
       <VisitAssignModal
@@ -394,22 +393,35 @@ const SchoolEditModal = ({ open, schoolId, onClose }: { open: boolean; schoolId:
   );
 };
 
-const EscalationModal = ({ open, onClose, schoolId, engineerId }: { open: boolean; onClose: () => void; schoolId: string; engineerId: string }) => {
+const EscalationModal = ({ open, onClose, schoolId }: { open: boolean; onClose: () => void; schoolId: string }) => {
   const create = useCreateEscalation();
   const { success, error: showError } = useToast();
+  const { profile } = useAuth();
+  const { data: engineers = [] } = useEngineers();
   const [form, setForm] = useState({ issue_type: 'other', urgency: 'medium', issue_description: '' });
 
   if (!schoolId) return null;
+
+  const myEngineerId = profile?.engineer_id ?? null;
+  const resolvedEngineerId = (() => {
+    if (myEngineerId) return myEngineerId;
+    if (profile?.role !== 'engineer' || !profile?.email) return null;
+    return engineers.find((e) => e.email.toLowerCase() === profile.email.toLowerCase())?.id ?? null;
+  })();
 
   const submit = async () => {
     if (!form.issue_description.trim()) {
       showError('Description required', 'Please describe the issue');
       return;
     }
+    if (!resolvedEngineerId) {
+      showError('Engineer profile not linked', 'Your user account is not linked to an engineer record. Ask an admin to link your profile.');
+      return;
+    }
     try {
       await create.mutateAsync({
         school_id: schoolId,
-        engineer_id: engineerId,
+        engineer_id: resolvedEngineerId,
         issue_type: form.issue_type as 'missing_material' | 'undelivered_material' | 'other',
         urgency: form.urgency as 'low' | 'medium' | 'high' | 'critical',
         issue_description: form.issue_description,
