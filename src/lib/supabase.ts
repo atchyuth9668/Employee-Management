@@ -31,6 +31,19 @@ export const supabase = createClient(
       storageKey: 'field-ops-auth',
     },
     realtime: isSupabaseConfigured() ? { params: { eventsPerSecond: 10 } } : undefined,
+    global: {
+      fetch: (input, init) => {
+        return fetch(input, init).then((res) => {
+          if (res.status === 401 && typeof window !== 'undefined') {
+            const sessionKey = 'field-ops-auth';
+            if (window.localStorage.getItem(sessionKey)) {
+              window.dispatchEvent(new CustomEvent('supabase:auth-rejected'));
+            }
+          }
+          return res;
+        });
+      },
+    },
   }
 );
 

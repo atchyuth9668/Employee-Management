@@ -44,6 +44,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       .maybeSingle();
     if (error) {
       console.error('Failed to load profile', error);
+      if ((error as { status?: number }).status === 401) {
+        try { await supabase.auth.signOut(); } catch { /* noop */ }
+      }
       return null;
     }
     return data as Profile | null;
@@ -72,6 +75,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const p = await fetchProfile(sess.user.id);
           if (mountedRef.current && inFlightToken.current === initToken) {
             setProfile(p);
+            if (!p) {
+              setUser(null);
+              setSession(null);
+            }
           }
         }
       } catch (err) {
@@ -82,7 +89,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       const token = s?.access_token ?? null;
       inFlightToken.current = token;
       if (!mountedRef.current) return;
@@ -92,6 +99,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         fetchProfile(s.user.id).then((p) => {
           if (mountedRef.current && inFlightToken.current === token) {
             setProfile(p);
+            if (!p) {
+              setUser(null);
+              setSession(null);
+            }
             setLoading(false);
           }
         });
@@ -99,13 +110,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setProfile(null);
         setLoading(false);
       }
+      if (event === 'TOKEN_REFRESHED' && s?.user && mountedRef.current) {
+        queryClient.invalidateQueries();
+      }
     });
 
     return () => {
       mountedRef.current = false;
       sub.subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, queryClient]);
 
   const signOut = useCallback(async () => {
     inFlightToken.current = null;
@@ -120,6 +134,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Sign out failed', err);
     }
   }, [queryClient]);
+
+  useEffect(() => {
+    const onRejected = () => {
+      if (mountedRef.current) {
+        signOut();
+      }
+    };
+    window.addEventListener('supabase:auth-rejected', onRejected);
+    return () => window.removeEventListener('supabase:auth-rejected', onRejected);
+  }, [signOut]);
 
   const role = profile?.role ?? null;
 
