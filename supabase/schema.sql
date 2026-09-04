@@ -388,6 +388,34 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
+-- Auto-link profile <-> engineer by email when a profile is created
+create or replace function public.handle_profile_link_engineer()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  matched_engineer uuid;
+begin
+  if new.engineer_id is null and new.email is not null then
+    select id into matched_engineer
+    from public.engineers
+    where lower(email) = lower(new.email)
+      and (auth_user_id is null or auth_user_id = new.id)
+    limit 1;
+    if matched_engineer is not null then
+      new.engineer_id := matched_engineer;
+      update public.engineers
+        set auth_user_id = new.id
+        where id = matched_engineer and auth_user_id is null;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_profiles_link_engineer on public.profiles;
+create trigger trg_profiles_link_engineer
+before insert on public.profiles
+for each row execute function public.handle_profile_link_engineer();
+
 -- =====================================================================
 -- Auto-create empty checklist when a school is created
 -- =====================================================================

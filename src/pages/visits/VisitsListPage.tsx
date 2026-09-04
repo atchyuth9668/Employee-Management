@@ -44,12 +44,18 @@ export const VisitsListPage = () => {
   const engineerById = useMemo(() => new Map(engineers.map((e) => [e.id, e])), [engineers]);
 
   const myEngineerId = profile?.engineer_id ?? null;
+  const resolvedEngineerId = useMemo(() => {
+    if (myEngineerId) return myEngineerId;
+    if (profile?.role !== 'engineer' || !profile?.email) return null;
+    const match = engineers.find((e) => e.email.toLowerCase() === profile.email.toLowerCase());
+    return match?.id ?? null;
+  }, [myEngineerId, profile, engineers]);
   const scoped = useMemo(() => {
-    if (profile?.role === 'engineer' && myEngineerId) {
-      return visits.filter((v) => v.engineer_id === myEngineerId);
+    if (profile?.role === 'engineer' && resolvedEngineerId) {
+      return visits.filter((v) => v.engineer_id === resolvedEngineerId);
     }
     return visits;
-  }, [visits, profile, myEngineerId]);
+  }, [visits, profile, resolvedEngineerId]);
 
   const filtered = useMemo(() => {
     if (!statusFilter) return scoped;
@@ -160,13 +166,13 @@ export const VisitsListPage = () => {
                     <td>
                       <div className="flex gap-1">
                         <Link to={`/visits/${v.id}`}><Button size="sm" variant="ghost">View</Button></Link>
-                        {v.status === 'scheduled' && v.engineer_id === myEngineerId && (
+                        {v.status === 'scheduled' && v.engineer_id === resolvedEngineerId && (
                           <>
                             <Button size="sm" variant="success" onClick={() => setActionTarget({ id: v.id, action: 'accept' })}>Accept</Button>
                             <Button size="sm" variant="danger" onClick={() => setActionTarget({ id: v.id, action: 'reject' })}>Reject</Button>
                           </>
                         )}
-                        {v.status === 'accepted' && v.engineer_id === myEngineerId && (
+                        {v.status === 'accepted' && v.engineer_id === resolvedEngineerId && (
                           <Button size="sm" variant="primary" onClick={() => setActionTarget({ id: v.id, action: 'complete' })}>Complete</Button>
                         )}
                         {canAssignVisits && (v.status === 'scheduled' || v.status === 'accepted') && (
