@@ -42,6 +42,7 @@ const sb = supabase as unknown as {
 interface ActiveChannel {
   channel: any;
   refs: number;
+  closing: boolean;
 }
 
 const activeChannels = new Map<string, ActiveChannel>();
@@ -66,15 +67,16 @@ const acquireChannel = (
       queryClient.invalidateQueries({ queryKey: queryKeyToInvalidate });
     });
     channel.subscribe((status: string) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        const entry = activeChannels.get(channelName);
-        if (entry) {
-          try { sb.removeChannel(entry.channel); } catch { /* noop */ }
-          activeChannels.delete(channelName);
-        }
+      const entry = activeChannels.get(channelName);
+      if (!entry) return;
+      if (entry.closing) return;
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        entry.closing = true;
+        try { sb.removeChannel(entry.channel); } catch { /* noop */ }
+        activeChannels.delete(channelName);
       }
     });
-    activeChannels.set(channelName, { channel, refs: 1 });
+    activeChannels.set(channelName, { channel, refs: 1, closing: false });
   } catch (err) {
     console.warn(`Realtime subscribe failed for ${table}`, err);
   }
@@ -85,6 +87,7 @@ const releaseChannel = (channelName: string): void => {
   if (!entry) return;
   entry.refs -= 1;
   if (entry.refs > 0) return;
+  entry.closing = true;
   try {
     sb.removeChannel(entry.channel);
   } catch { /* noop */ }
@@ -93,6 +96,7 @@ const releaseChannel = (channelName: string): void => {
 
 export const releaseAllChannels = (): void => {
   for (const [name, entry] of activeChannels.entries()) {
+    entry.closing = true;
     try { sb.removeChannel(entry.channel); } catch { /* noop */ }
     activeChannels.delete(name);
   }
