@@ -149,7 +149,7 @@ export const VisitsListPage = () => {
                 <tr>
                   <th>Date</th>
                   <th>School</th>
-                  <th>Engineer</th>
+                  {profile?.role !== 'engineer' && <th>Engineer</th>}
                   <th>Reason</th>
                   <th>Status</th>
                   <th></th>
@@ -160,7 +160,9 @@ export const VisitsListPage = () => {
                   <tr key={v.id}>
                     <td>{formatDate(v.visit_date)}</td>
                     <td>{schoolById.get(v.school_id)?.name ?? '—'}</td>
-                    <td>{engineerById.get(v.engineer_id)?.full_name ?? '—'}</td>
+                    {profile?.role !== 'engineer' && (
+                      <td>{engineerById.get(v.engineer_id)?.full_name ?? '—'}</td>
+                    )}
                     <td className="truncate" style={{ maxWidth: 200 }}>{v.reason}</td>
                     <td><Badge variant={v.status === 'completed' ? 'success' : v.status === 'rejected' || v.status === 'cancelled' ? 'danger' : 'info'}>{VISIT_STATUS_LABELS[v.status]}</Badge></td>
                     <td>
