@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, AlertTriangle, CalendarCheck, Pencil, History } from 'lucide-react';
+import { ArrowLeft, MapPin, AlertTriangle, CalendarCheck, Pencil, History, Phone } from 'lucide-react';
 import { useSchool, useUpdateSchool, useSchoolChecklist, useUpdateChecklistItem, useVisits, useEscalations, useEngineers, useCreateVisit, useCreateEscalation } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
@@ -62,6 +62,17 @@ export const SchoolDetailPage = () => {
     }
   };
 
+  const openDialer = () => {
+    if (!school) return;
+    const raw = (school.spoc_contact ?? '').trim();
+    if (!raw) {
+      showError('No contact number', 'Add a contact number for this school to call the SPOC.');
+      return;
+    }
+    const digits = raw.replace(/[^\d+]/g, '');
+    window.location.href = `tel:${digits}`;
+  };
+
   const toggleChecklist = async (
     key: ChecklistKey,
     done: boolean,
@@ -98,6 +109,9 @@ export const SchoolDetailPage = () => {
       <div className="flex gap-2 mb-4 flex-wrap">
         <Button variant="secondary" onClick={openMaps}>
           <MapPin size={14} /> Open Maps
+        </Button>
+        <Button variant="secondary" onClick={openDialer} disabled={!school.spoc_contact?.trim()}>
+          <Phone size={14} /> Contact Info
         </Button>
         <Button variant="secondary" onClick={() => setEscalationOpen(true)}>
           <AlertTriangle size={14} /> Report Issue
