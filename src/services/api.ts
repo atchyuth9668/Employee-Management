@@ -264,7 +264,7 @@ export const useEscalations = (options?: Partial<UseQueryOptions<EscalationWithR
     queryFn: async () => {
       const { data, error } = await sb
         .from('escalations')
-        .select('*, engineer:engineers(id, full_name, email)')
+        .select('*, engineer:engineers!escalations_engineer_id_fkey(id, full_name, email)')
         .order('created_at', { ascending: false });
       if (error) handleError(error);
       return ((data ?? []) as EscalationWithRelations[]);
