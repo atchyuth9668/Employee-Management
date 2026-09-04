@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { MobileNav } from './MobileNav';
 import { ToastViewport } from '../ui/ToastViewport';
 
 export const AppShell = () => {
@@ -14,6 +15,7 @@ export const AppShell = () => {
         <main className="app-content">
           <Outlet />
         </main>
+        <MobileNav />
         <footer
           style={{
             padding: '12px 20px',

@@ -39,6 +39,7 @@ export const Topbar = ({ onToggleSidebar }: TopbarProps) => {
 
   return (
     <header
+      className="app-topbar"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -56,17 +57,17 @@ export const Topbar = ({ onToggleSidebar }: TopbarProps) => {
       </button>
 
       <button
-        className="btn btn-secondary"
+        className="btn btn-secondary mobile-hide-name"
         onClick={() => setSearchOpen(true)}
         style={{ flex: 1, justifyContent: 'flex-start', color: 'var(--fg-muted)', maxWidth: 480 }}
         aria-label="Open search"
       >
         <Search size={16} />
-        <span style={{ marginLeft: 6 }}>Search schools, engineers, visits…</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.7 }}>⌘K</span>
+        <span style={{ marginLeft: 6 }}>Search…</span>
+        <span className="kbd-hint" style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.7 }}>⌘K</span>
       </button>
 
-      <div className={`connection-pill ${state !== 'connected' ? 'disconnected' : ''}`} aria-live="polite">
+      <div className={`connection-pill ${state !== 'connected' ? 'disconnected' : ''} mobile-hide`} aria-live="polite">
         {state === 'connected' ? <Wifi size={12} /> : <WifiOff size={12} />}
         <span className="connection-dot" aria-hidden="true" />
         <span>{connectionLabel}</span>
@@ -93,13 +94,13 @@ export const Topbar = ({ onToggleSidebar }: TopbarProps) => {
           <span className="avatar" aria-hidden="true">
             {initials(profile?.full_name ?? 'U')}
           </span>
-          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+          <span className="user-meta" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>{profile?.full_name ?? 'User'}</span>
             <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
               {profile ? ROLE_LABELS[profile.role] : ''}
             </span>
           </span>
-          <ChevronDown size={14} />
+          <ChevronDown size={14} className="user-meta" />
         </button>
         {menuOpen && (
           <div
