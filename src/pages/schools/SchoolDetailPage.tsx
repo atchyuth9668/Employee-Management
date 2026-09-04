@@ -62,10 +62,14 @@ export const SchoolDetailPage = () => {
     }
   };
 
-  const toggleChecklist = async (key: ChecklistKey, done: boolean) => {
+  const toggleChecklist = async (
+    key: ChecklistKey,
+    done: boolean,
+    componentStatus?: 'all_received' | 'pending',
+  ) => {
     if (!id) return;
     try {
-      await updateChecklist.mutateAsync({ schoolId: id, key, done });
+      await updateChecklist.mutateAsync({ schoolId: id, key, done, componentStatus });
     } catch (err) {
       showError('Could not update checklist', err instanceof Error ? err.message : 'Unexpected error');
     }
@@ -173,6 +177,43 @@ export const SchoolDetailPage = () => {
                   const dateKey = `${item.key}_date` as keyof typeof checklist;
                   const done = (checklist as Record<string, unknown> | null)?.[item.key] as boolean ?? false;
                   const date = ((checklist as Record<string, unknown> | null)?.[dateKey] as string | null) ?? null;
+                  if (item.key === 'component_verified') {
+                    const status = (checklist?.component_status ?? (done ? 'all_received' : 'pending')) as 'all_received' | 'pending';
+                    const options: { value: 'all_received' | 'pending'; label: string; variant: 'success' | 'warning' }[] = [
+                      { value: 'all_received', label: 'All Components Received', variant: 'success' },
+                      { value: 'pending', label: 'Pending Components', variant: 'warning' },
+                    ];
+                    return (
+                      <div key={item.key} className="list-item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                        <div className="flex items-center gap-3" style={{ width: '100%' }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="font-medium">{item.label}</div>
+                            <div className="text-xs text-muted">{date ? `Updated on ${date}` : 'Not set'}</div>
+                          </div>
+                          <Badge variant={status === 'all_received' ? 'success' : 'warning'}>
+                            {status === 'all_received' ? 'All Received' : 'Pending'}
+                          </Badge>
+                        </div>
+                        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                          {options.map((opt) => {
+                            const selected = status === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => toggleChecklist(item.key, opt.value === 'all_received', opt.value)}
+                                className={`pill ${selected ? `pill-${opt.variant}` : 'pill-neutral'}`}
+                                aria-pressed={selected}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <label key={item.key} className="list-item" style={{ cursor: 'pointer' }}>
                       <div className="flex items-center gap-3">

@@ -339,9 +339,25 @@ export const useSoftDeleteSchool = () => {
 export const useUpdateChecklistItem = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ schoolId, key, done }: { schoolId: string; key: ChecklistKey; done: boolean }) => {
+    mutationFn: async ({
+      schoolId,
+      key,
+      done,
+      componentStatus,
+    }: {
+      schoolId: string;
+      key: ChecklistKey;
+      done: boolean;
+      componentStatus?: 'all_received' | 'pending';
+    }) => {
       const dateKey = `${key}_date`;
-      const patch: Record<string, unknown> = { [key]: done, [dateKey]: done ? new Date().toISOString().slice(0, 10) : null };
+      const patch: Record<string, unknown> = {
+        [key]: done,
+        [dateKey]: done ? new Date().toISOString().slice(0, 10) : null,
+      };
+      if (key === 'component_verified') {
+        patch.component_status = componentStatus ?? (done ? 'all_received' : 'pending');
+      }
       const { data, error } = await sb
         .from('school_checklists')
         .upsert({ school_id: schoolId, ...patch }, { onConflict: 'school_id' })

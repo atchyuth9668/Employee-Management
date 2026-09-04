@@ -77,6 +77,7 @@ export interface SchoolChecklist {
   school_id: string;
   component_verified: boolean;
   component_verified_date: string | null;
+  component_status: 'all_received' | 'pending' | null;
   initial_teacher_training: boolean;
   initial_teacher_training_date: string | null;
   teachers_lms: boolean;
