@@ -159,7 +159,6 @@ useEffect(() => {
   const exportSchools = () => {
     const rows = schools.map((s) => ({
       name: s.name, region: s.region, area: s.area, spoc_name: s.spoc_name, spoc_contact: s.spoc_contact,
-      engineer: s.assigned_engineer_id ? engineerById.get(s.assigned_engineer_id)?.full_name ?? '' : '',
       progress: checklistMap[s.id] ?? 0,
       status: s.is_active ? 'active' : 'inactive',
     }));
@@ -169,7 +168,6 @@ useEffect(() => {
       { key: 'area', label: 'Area' },
       { key: 'spoc_name', label: 'SPOC' },
       { key: 'spoc_contact', label: 'Contact' },
-      { key: 'engineer', label: 'Engineer' },
       { key: 'progress', label: 'Progress %' },
       { key: 'status', label: 'Status' },
     ]));
@@ -286,7 +284,7 @@ useEffect(() => {
             <div className="table-wrap">
               <table className="table">
                 <thead>
-                  <tr><th>School</th><th>SPOC</th><th>Region</th><th>Engineer</th><th>Progress</th><th>Status</th></tr>
+                  <tr><th>School</th><th>SPOC</th><th>Region</th><th>Progress</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   {schools.map((s) => (
@@ -294,7 +292,6 @@ useEffect(() => {
                       <td>{s.name}</td>
                       <td>{s.spoc_name}</td>
                       <td>{s.region}</td>
-                      <td>{s.assigned_engineer_id ? engineerById.get(s.assigned_engineer_id)?.full_name ?? '—' : '—'}</td>
                       <td style={{ minWidth: 140 }}><ProgressBar value={checklistMap[s.id] ?? 0} showLabel /></td>
                       <td><Badge variant={s.is_active ? 'success' : 'neutral'}>{s.is_active ? 'Active' : 'Inactive'}</Badge></td>
                     </tr>
