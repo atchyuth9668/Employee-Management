@@ -45,19 +45,28 @@ export const EscalationsListPage = () => {
   const engineerById = useMemo(() => new Map(engineers.map((e) => [e.id, e])), [engineers]);
   const schoolById = useMemo(() => new Map(schools.map((s) => [s.id, s])), [schools]);
 
+  const enriched = useMemo(
+    () => escalations.map((e) => ({
+      ...e,
+      engineer: e.engineer ?? engineerById.get(e.engineer_id) ?? null,
+    })),
+    [escalations, engineerById],
+  );
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return escalations.filter((e) => {
+    return enriched.filter((e) => {
       const school = schoolById.get(e.school_id);
       if (statusFilter && e.status !== statusFilter) return false;
       if (urgencyFilter && e.urgency !== urgencyFilter) return false;
       if (!term) return true;
       return (
         e.issue_description.toLowerCase().includes(term) ||
-        (school?.name.toLowerCase().includes(term) ?? false)
+        (school?.name.toLowerCase().includes(term) ?? false) ||
+        (e.engineer?.full_name.toLowerCase().includes(term) ?? false)
       );
     });
-  }, [escalations, search, statusFilter, urgencyFilter, schoolById]);
+  }, [enriched, search, statusFilter, urgencyFilter, schoolById]);
 
   const counts = useMemo(() => {
     return {
@@ -170,6 +179,7 @@ export const EscalationsListPage = () => {
                 <tr>
                   <th>Created</th>
                   <th>School</th>
+                  <th>Engineer</th>
                   <th>Type</th>
                   <th>Description</th>
                   <th>Urgency</th>
@@ -185,6 +195,7 @@ export const EscalationsListPage = () => {
                     <tr key={e.id} style={rowStyle}>
                       <td title={formatDate(e.created_at)}>{relativeFromNow(e.created_at)}</td>
                       <td>{school?.name ?? '—'} <span className="text-xs text-muted">({school?.region ?? ''})</span></td>
+                      <td>{e.engineer?.full_name ?? '—'}</td>
                       <td>{ESCALATION_ISSUE_TYPE_LABELS[e.issue_type]}</td>
                       <td className="truncate" style={{ maxWidth: 260 }}>{e.issue_description}</td>
                       <td><Badge variant={e.urgency === 'critical' ? 'danger' : e.urgency === 'high' ? 'warning' : 'info'}>{ESCALATION_URGENCY_LABELS[e.urgency]}</Badge></td>

@@ -10,6 +10,7 @@ import type {
   Escalation,
   ChecklistKey,
   VisitStatus,
+  EscalationWithRelations,
 } from '../types';
 
 export const queryKeys = {
@@ -257,16 +258,16 @@ export const useDailyLogs = (options?: Partial<UseQueryOptions<DailyLog[]>>) => 
   return query;
 };
 
-export const useEscalations = (options?: Partial<UseQueryOptions<Escalation[]>>) => {
-  const query = useQuery<Escalation[]>({
+export const useEscalations = (options?: Partial<UseQueryOptions<EscalationWithRelations[]>>) => {
+  const query = useQuery<EscalationWithRelations[]>({
     queryKey: queryKeys.escalations,
     queryFn: async () => {
       const { data, error } = await sb
         .from('escalations')
-        .select('*')
+        .select('*, engineer:engineers(id, full_name, email)')
         .order('created_at', { ascending: false });
       if (error) handleError(error);
-      return ((data ?? []) as Escalation[]);
+      return ((data ?? []) as EscalationWithRelations[]);
     },
     enabled: isSupabaseConfigured(),
     ...options,
