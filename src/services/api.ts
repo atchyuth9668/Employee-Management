@@ -12,6 +12,7 @@ import type {
   VisitStatus,
   EscalationWithRelations,
   Holiday,
+  Leave,
 } from '../types';
 
 export const queryKeys = {
@@ -28,6 +29,7 @@ export const queryKeys = {
   escalations: ['escalations'] as const,
   escalation: (id: string) => ['escalation', id] as const,
   holidays: ['holidays'] as const,
+  leaves: ['leaves'] as const,
   notifications: ['notifications'] as const,
 };
 
@@ -595,5 +597,103 @@ export const useDeleteHoliday = () => {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.holidays }),
+  });
+};
+
+export const useLeaves = (options?: Partial<UseQueryOptions<Leave[]>>) => {
+  const query = useQuery<Leave[]>({
+    queryKey: queryKeys.leaves,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from('leaves')
+        .select('*')
+        .order('start_date', { ascending: false });
+      if (error) handleError(error);
+      return ((data ?? []) as Leave[]);
+    },
+    enabled: isSupabaseConfigured(),
+    ...options,
+  });
+  useRealtimeSubscription('leaves-realtime', 'leaves', queryKeys.leaves);
+  return query;
+};
+
+export const useCreateLeave = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { engineer_id: string; start_date: string; end_date: string; reason: string }) => {
+      if (!input.engineer_id) throw new Error('Engineer is required');
+      if (!input.start_date || !input.end_date) throw new Error('Start and end dates are required');
+      if (input.start_date > input.end_date) throw new Error('Start date must be on or before end date');
+      if (!input.reason.trim()) throw new Error('Reason is required');
+      const { data, error } = await sb
+        .from('leaves')
+        .insert({
+          engineer_id: input.engineer_id,
+          start_date: input.start_date,
+          end_date: input.end_date,
+          reason: input.reason.trim(),
+        })
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as Leave;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leaves });
+      qc.invalidateQueries({ queryKey: queryKeys.logs });
+    },
+  });
+};
+
+export const useDecideLeave = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      decision,
+      decidedBy,
+      decisionNote,
+    }: {
+      id: string;
+      decision: 'approved' | 'rejected';
+      decidedBy: string;
+      decisionNote?: string;
+    }) => {
+      const { data, error } = await sb
+        .from('leaves')
+        .update({
+          status: decision,
+          decided_by: decidedBy,
+          decided_at: new Date().toISOString(),
+          decision_note: decisionNote || null,
+        })
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as Leave;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.leaves });
+      qc.invalidateQueries({ queryKey: queryKeys.logs });
+    },
+  });
+};
+
+export const useCancelLeave = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await sb
+        .from('leaves')
+        .update({ status: 'cancelled' })
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as Leave;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.leaves }),
   });
 };

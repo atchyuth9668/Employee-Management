@@ -11,6 +11,7 @@ import {
   Settings,
   X,
   CalendarOff,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { cn } from '../../utils/cn';
@@ -36,6 +37,7 @@ const items: NavItem[] = [
   { to: '/engineers', label: 'Engineers', icon: Users, visible: (r) => r === 'admin' || r === 'team_lead' },
   { to: '/reports', label: 'Reports', icon: FileBarChart, visible: () => true },
   { to: '/holidays', label: 'Holidays', icon: CalendarOff, visible: (r) => r === 'admin' || r === 'team_lead' },
+  { to: '/leaves', label: 'Leaves', icon: CalendarDays, visible: () => true },
   { to: '/profile', label: 'Profile', icon: UserCircle, visible: () => true },
   { to: '/settings', label: 'Settings', icon: Settings, visible: () => true },
 ];

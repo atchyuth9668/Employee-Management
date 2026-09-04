@@ -123,6 +123,22 @@ export interface Holiday {
   updated_at: string;
 }
 
+export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface Leave {
+  id: string;
+  engineer_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  status: LeaveStatus;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Escalation {
   id: string;
   school_id: string;
