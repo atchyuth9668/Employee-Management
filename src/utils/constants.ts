@@ -4,6 +4,7 @@ export type Region = (typeof REGIONS)[number];
 export const USER_ROLES = ['admin', 'team_lead', 'engineer', 'viewer'] as const;
 export const VISIT_STATUSES = ['scheduled', 'accepted', 'completed', 'rejected', 'cancelled'] as const;
 export const ACTIVITY_TYPES = ['school_visit', 'work_from_home', 'leave', 'holiday', 'other'] as const;
+export const LOG_ACTIVITY_TYPES = ['school_visit', 'work_from_home', 'other'] as const;
 export const ESCALATION_STATUSES = ['open', 'in_progress', 'resolved', 'closed'] as const;
 export const ESCALATION_URGENCIES = ['low', 'medium', 'high', 'critical'] as const;
 export const ESCALATION_ISSUE_TYPES = ['missing_material', 'undelivered_material', 'other'] as const;

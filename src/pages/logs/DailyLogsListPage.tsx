@@ -10,7 +10,7 @@ import { Field, Input, Select, Textarea } from '../../components/ui/Form';
 import { Modal } from '../../components/modals/Modal';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { ACTIVITY_LABELS, ACTIVITY_TYPES } from '../../utils/constants';
+import { ACTIVITY_LABELS, LOG_ACTIVITY_TYPES } from '../../utils/constants';
 import { formatDate, formatTime, isoDateOnly } from '../../utils/date';
 
 export const DailyLogsListPage = () => {
@@ -276,7 +276,7 @@ const LogModal = ({ open, onClose, defaultEngineerId }: { open: boolean; onClose
       <div className="form-row">
         <Field label="Activity type" required>
           <Select value={form.activity_type} onChange={(e) => setForm({ ...form, activity_type: e.target.value })}>
-            {ACTIVITY_TYPES.map((a) => <option key={a} value={a}>{ACTIVITY_LABELS[a]}</option>)}
+            {LOG_ACTIVITY_TYPES.map((a) => <option key={a} value={a}>{ACTIVITY_LABELS[a]}</option>)}
           </Select>
         </Field>
         {form.activity_type === 'school_visit' && (
