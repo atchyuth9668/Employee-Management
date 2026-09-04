@@ -129,7 +129,14 @@ export const VisitsListPage = () => {
           {isLoading ? (
             <div style={{ padding: 16 }}><Skeleton style={{ height: 60 }} /></div>
           ) : filtered.length === 0 ? (
-            <EmptyState title="No visits yet" description="Assign a visit to get started." />
+            profile?.role === 'engineer' && !profile?.engineer_id ? (
+              <EmptyState
+                title="Engineer profile not linked"
+                description="Your user account is not linked to an engineer record. Ask an admin to link your auth user to your engineer profile so visits assigned to you will appear here."
+              />
+            ) : (
+              <EmptyState title="No visits yet" description="Assign a visit to get started." />
+            )
           ) : (
             <table className="table">
               <thead>
