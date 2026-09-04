@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Check, X } from 'lucide-react';
-import { useDailyLogs, useSchools, useEngineers, useCreateDailyLog, useApproveDailyLog } from '../../services/api';
+import { Plus, Check, X, CalendarOff } from 'lucide-react';
+import { useDailyLogs, useSchools, useEngineers, useCreateDailyLog, useApproveDailyLog, useHolidays } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useToast } from '../../providers/ToastProvider';
 import { Card, CardHeader } from '../../components/ui/Card';
@@ -18,6 +18,7 @@ export const DailyLogsListPage = () => {
   const { data: logs = [], isLoading } = useDailyLogs();
   const { data: schools = [] } = useSchools();
   const { data: engineers = [] } = useEngineers();
+  const { data: holidays = [] } = useHolidays();
   const approveLog = useApproveDailyLog();
   const { success, error: showError } = useToast();
   const [open, setOpen] = useState(false);
@@ -35,6 +36,44 @@ export const DailyLogsListPage = () => {
     }
     return logs;
   }, [logs, profile, myEngineerId]);
+
+  type HolidayRow = {
+    kind: 'log';
+    log: typeof scoped[number];
+  } | {
+    kind: 'holiday';
+    id: string;
+    engineer_id: string;
+    log_date: string;
+    reason: string;
+  };
+
+  const combined: HolidayRow[] = useMemo(() => {
+    if (profile?.role !== 'engineer' || !myEngineerId) {
+      return scoped.map((l) => ({ kind: 'log' as const, log: l }));
+    }
+    const logDates = new Set(scoped.map((l) => l.log_date));
+    const rows: HolidayRow[] = scoped.map((l) => ({ kind: 'log' as const, log: l }));
+    holidays
+      .filter((h) => !logDates.has(h.holiday_date))
+      .forEach((h) => {
+        rows.push({
+          kind: 'holiday',
+          id: `holiday-${h.id}`,
+          engineer_id: myEngineerId,
+          log_date: h.holiday_date,
+          reason: h.reason,
+        });
+      });
+    rows.sort((a, b) => {
+      const da = a.kind === 'log' ? a.log.log_date : a.log_date;
+      const db = b.kind === 'log' ? b.log.log_date : b.log_date;
+      return db.localeCompare(da);
+    });
+    return rows;
+  }, [scoped, holidays, profile, myEngineerId]);
+
+  const holidayCount = combined.filter((r) => r.kind === 'holiday').length;
 
   const handleApprove = async (id: string, approve: boolean, engineerId: string) => {
     if (engineerId === profile?.engineer_id) {
@@ -62,11 +101,11 @@ export const DailyLogsListPage = () => {
       </div>
 
       <Card>
-        <CardHeader title={`${scoped.length} log${scoped.length === 1 ? '' : 's'}`} />
+        <CardHeader title={`${scoped.length} log${scoped.length === 1 ? '' : 's'}`} actions={holidayCount > 0 ? <Badge variant="info"><CalendarOff size={12} /> {holidayCount} holiday{holidayCount === 1 ? '' : 's'}</Badge> : undefined} />
         <div className="table-wrap">
           {isLoading ? (
             <div style={{ padding: 16 }}><Skeleton style={{ height: 60 }} /></div>
-          ) : scoped.length === 0 ? (
+          ) : combined.length === 0 ? (
             <EmptyState title="No logs yet" description="Start by logging today's activities." />
           ) : (
             <table className="table">
@@ -82,29 +121,45 @@ export const DailyLogsListPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {scoped.map((l) => (
-                  <tr key={l.id}>
-                    <td>{formatDate(l.log_date)}</td>
-                    <td>{engineerById.get(l.engineer_id)?.full_name ?? '—'}</td>
-                    <td><Badge variant={l.activity_type === 'school_visit' ? 'accent' : 'neutral'}>{ACTIVITY_LABELS[l.activity_type]}</Badge></td>
-                    <td>{l.school_id ? schoolById.get(l.school_id)?.name ?? '—' : '—'}</td>
-                    <td>{formatTime(l.start_time)} – {formatTime(l.end_time)}</td>
-                    <td>
-                      {l.is_approved ? <Badge variant="success">Approved</Badge> : <Badge variant="warning">Pending</Badge>}
-                    </td>
-                    <td>
-                      <div className="flex gap-1">
-                        {canApproveLogs && l.engineer_id !== myEngineerId && !l.is_approved && (
-                          <>
-                            <Button size="sm" variant="success" onClick={() => handleApprove(l.id, true, l.engineer_id)} aria-label="Approve"><Check size={12} /></Button>
-                            <Button size="sm" variant="danger" onClick={() => handleApprove(l.id, false, l.engineer_id)} aria-label="Reject"><X size={12} /></Button>
-                          </>
-                        )}
-                        {l.rejection_reason && <span className="text-xs text-muted">Rejected: {l.rejection_reason}</span>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {combined.map((row) => {
+                  if (row.kind === 'holiday') {
+                    return (
+                      <tr key={row.id} style={{ background: 'var(--info-soft)' }}>
+                        <td>{formatDate(row.log_date)}</td>
+                        <td>{engineerById.get(row.engineer_id)?.full_name ?? '—'}</td>
+                        <td><Badge variant="info"><CalendarOff size={12} /> Holiday</Badge></td>
+                        <td className="truncate" style={{ maxWidth: 220 }}>{row.reason}</td>
+                        <td>—</td>
+                        <td><Badge variant="neutral">Auto</Badge></td>
+                        <td className="text-xs text-muted">Declared by admin</td>
+                      </tr>
+                    );
+                  }
+                  const l = row.log;
+                  return (
+                    <tr key={l.id}>
+                      <td>{formatDate(l.log_date)}</td>
+                      <td>{engineerById.get(l.engineer_id)?.full_name ?? '—'}</td>
+                      <td><Badge variant={l.activity_type === 'school_visit' ? 'accent' : 'neutral'}>{ACTIVITY_LABELS[l.activity_type]}</Badge></td>
+                      <td>{l.school_id ? schoolById.get(l.school_id)?.name ?? '—' : '—'}</td>
+                      <td>{formatTime(l.start_time)} – {formatTime(l.end_time)}</td>
+                      <td>
+                        {l.is_approved ? <Badge variant="success">Approved</Badge> : <Badge variant="warning">Pending</Badge>}
+                      </td>
+                      <td>
+                        <div className="flex gap-1">
+                          {canApproveLogs && l.engineer_id !== myEngineerId && !l.is_approved && (
+                            <>
+                              <Button size="sm" variant="success" onClick={() => handleApprove(l.id, true, l.engineer_id)} aria-label="Approve"><Check size={12} /></Button>
+                              <Button size="sm" variant="danger" onClick={() => handleApprove(l.id, false, l.engineer_id)} aria-label="Reject"><X size={12} /></Button>
+                            </>
+                          )}
+                          {l.rejection_reason && <span className="text-xs text-muted">Rejected: {l.rejection_reason}</span>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

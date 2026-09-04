@@ -114,6 +114,15 @@ export interface DailyLog {
   updated_at: string;
 }
 
+export interface Holiday {
+  id: string;
+  holiday_date: string;
+  reason: string;
+  declared_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Escalation {
   id: string;
   school_id: string;

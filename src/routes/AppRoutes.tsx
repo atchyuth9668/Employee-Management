@@ -17,6 +17,7 @@ import { EscalationDetailPage } from '../pages/escalations/EscalationDetailPage'
 import { EngineersListPage } from '../pages/engineers/EngineersListPage';
 import { EngineerDetailPage } from '../pages/engineers/EngineerDetailPage';
 import { ReportsPage } from '../pages/reports/ReportsPage';
+import { HolidaysPage } from '../pages/holidays/HolidaysPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { SettingsPage } from '../pages/settings/SettingsPage';
 import { AppShell } from '../components/layout/AppShell';
@@ -49,6 +50,7 @@ export const AppRoutes = () => (
       <Route path="/engineers" element={<RoleRoute roles={['admin', 'team_lead']}><EngineersListPage /></RoleRoute>} />
       <Route path="/engineers/:id" element={<RoleRoute roles={['admin', 'team_lead']}><EngineerDetailPage /></RoleRoute>} />
       <Route path="/reports" element={<ReportsPage />} />
+      <Route path="/holidays" element={<HolidaysPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/404" element={<NotFoundPage />} />

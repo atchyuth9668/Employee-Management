@@ -11,6 +11,7 @@ import type {
   ChecklistKey,
   VisitStatus,
   EscalationWithRelations,
+  Holiday,
 } from '../types';
 
 export const queryKeys = {
@@ -26,6 +27,7 @@ export const queryKeys = {
   log: (id: string) => ['log', id] as const,
   escalations: ['escalations'] as const,
   escalation: (id: string) => ['escalation', id] as const,
+  holidays: ['holidays'] as const,
   notifications: ['notifications'] as const,
 };
 
@@ -538,4 +540,60 @@ export const useNotifications = () => {
   });
   useRealtimeSubscription('notifications-realtime', 'escalations', queryKeys.notifications);
   return query;
+};
+export const useHolidays = () => {
+  const query = useQuery<Holiday[]>({
+    queryKey: queryKeys.holidays,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from('holidays')
+        .select('*')
+        .order('holiday_date', { ascending: false });
+      if (error) handleError(error);
+      return ((data ?? []) as Holiday[]);
+    },
+    enabled: isSupabaseConfigured(),
+  });
+  useRealtimeSubscription('holidays-realtime', 'holidays', queryKeys.holidays);
+  return query;
+};
+
+export const useDeclareHolidays = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { from: string; to: string; reason: string; declaredBy: string | null }) => {
+      if (!input.from || !input.to) throw new Error('From and To dates are required');
+      if (input.from > input.to) throw new Error('From date must be on or before To date');
+      if (!input.reason.trim()) throw new Error('Reason is required');
+      const dates: string[] = [];
+      const start = new Date(input.from + 'T00:00:00Z');
+      const end = new Date(input.to + 'T00:00:00Z');
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        dates.push(d.toISOString().slice(0, 10));
+      }
+      const rows = dates.map((d) => ({
+        holiday_date: d,
+        reason: input.reason.trim(),
+        declared_by: input.declaredBy,
+      }));
+      const { data, error } = await sb
+        .from('holidays')
+        .upsert(rows, { onConflict: 'holiday_date' })
+        .select('*');
+      if (error) throw error;
+      return (data ?? []) as Holiday[];
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.holidays }),
+  });
+};
+
+export const useDeleteHoliday = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sb.from('holidays').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.holidays }),
+  });
 };
