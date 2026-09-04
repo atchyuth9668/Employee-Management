@@ -18,7 +18,7 @@ export const EscalationsListPage = () => {
   const { data: escalations = [], isLoading } = useEscalations();
   const { data: schools = [] } = useSchools();
   const { data: engineers = [] } = useEngineers();
-  const { canManageSchools } = useAuth();
+  const { canManageSchools, profile } = useAuth();
   const create = useCreateEscalation();
   const update = useUpdateEscalation();
   const { success, error: showError } = useToast();
@@ -35,7 +35,6 @@ export const EscalationsListPage = () => {
     issue_type: 'other' as 'missing_material' | 'undelivered_material' | 'other',
     urgency: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     issue_description: '',
-    engineer_id: '',
   });
 
   useEffect(() => {
@@ -44,6 +43,14 @@ export const EscalationsListPage = () => {
 
   const engineerById = useMemo(() => new Map(engineers.map((e) => [e.id, e])), [engineers]);
   const schoolById = useMemo(() => new Map(schools.map((s) => [s.id, s])), [schools]);
+
+  const myEngineerId = profile?.engineer_id ?? null;
+  const resolvedEngineerId = useMemo(() => {
+    if (myEngineerId) return myEngineerId;
+    if (profile?.role !== 'engineer' || !profile?.email) return null;
+    const match = engineers.find((e) => e.email.toLowerCase() === profile.email.toLowerCase());
+    return match?.id ?? null;
+  }, [myEngineerId, profile, engineers]);
 
   const enriched = useMemo(
     () => escalations.map((e) => ({
@@ -82,15 +89,14 @@ export const EscalationsListPage = () => {
       showError('Missing details', 'School and description are required');
       return;
     }
-    const engineerId = form.engineer_id || engineerById.get(schoolById.get(form.school_id)?.assigned_engineer_id ?? '')?.id || '';
-    if (!engineerId) {
-      showError('Engineer required', 'Please select an engineer for this escalation');
+    if (!resolvedEngineerId) {
+      showError('Engineer profile not linked', 'Your user account is not linked to an engineer record. Ask an admin to link your profile.');
       return;
     }
     try {
       await create.mutateAsync({
         school_id: form.school_id,
-        engineer_id: engineerId,
+        engineer_id: resolvedEngineerId,
         issue_type: form.issue_type,
         urgency: form.urgency,
         issue_description: form.issue_description,
@@ -98,7 +104,7 @@ export const EscalationsListPage = () => {
       });
       success('Escalation raised', 'Team will be notified.');
       setOpen(false);
-      setForm({ school_id: '', issue_type: 'other', urgency: 'medium', issue_description: '', engineer_id: '' });
+      setForm({ school_id: '', issue_type: 'other', urgency: 'medium', issue_description: '' });
     } catch (err) {
       showError('Failed to raise escalation', err instanceof Error ? err.message : 'Unexpected error');
     }
@@ -237,12 +243,6 @@ export const EscalationsListPage = () => {
             <Select value={form.school_id} onChange={(e) => setForm({ ...form, school_id: e.target.value })}>
               <option value="">Select school</option>
               {schools.filter((s) => s.is_active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Engineer">
-            <Select value={form.engineer_id} onChange={(e) => setForm({ ...form, engineer_id: e.target.value })}>
-              <option value="">Auto (assigned engineer)</option>
-              {engineers.filter((e) => e.is_active).map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
             </Select>
           </Field>
         </div>
