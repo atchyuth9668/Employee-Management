@@ -3,11 +3,11 @@ import { Download } from 'lucide-react';
 import { useSchools, useVisits, useDailyLogs, useEscalations, useEngineers } from '../../services/api';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Field, Select } from '../../components/ui/Form';
+import { Field, Input, Select } from '../../components/ui/Form';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { downloadCsv, toCsv } from '../../utils/helpers';
 import { REGIONS, ESCALATION_ISSUE_TYPE_LABELS, ESCALATION_STATUS_LABELS, ESCALATION_URGENCY_LABELS, VISIT_STATUS_LABELS } from '../../utils/constants';
-import { addDays, endOfMonth, formatDate, isoDateOnly, startOfMonth, withinRange } from '../../utils/date';
+import { addDays, endOfMonth, formatDate, startOfMonth, withinRange } from '../../utils/date';
 import { supabase } from '../../lib/supabase';
 import { Badge } from '../../components/ui/Badge';
 
@@ -24,6 +24,8 @@ export const ReportsPage = () => {
   const { data: escalations = [] } = useEscalations();
   const { data: engineers = [] } = useEngineers();
   const [range, setRange] = useState<Range>('month');
+  const [visitFrom, setVisitFrom] = useState('');
+  const [visitTo, setVisitTo] = useState('');
 
   const rangeBounds = useMemo(() => {
     const now = new Date();
@@ -94,9 +96,21 @@ useEffect(() => {
     ]));
   };
 
-  const exportAllCompletedVisits = () => {
-    const completed = visits.filter((v) => v.status === 'completed');
-    const rows = completed.map((v) => ({
+  const completedVisitsInCustomRange = useMemo(() => {
+    const from = visitFrom || null;
+    const to = visitTo || null;
+    return visits.filter((v) => {
+      if (v.status !== 'completed') return false;
+      const d = v.visit_date;
+      if (!d) return false;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+  }, [visits, visitFrom, visitTo]);
+
+  const downloadCompletedVisitsRange = () => {
+    const rows = completedVisitsInCustomRange.map((v) => ({
       date: v.visit_date,
       school: schoolById.get(v.school_id)?.name ?? '',
       engineer: engineerById.get(v.engineer_id)?.full_name ?? '',
@@ -104,55 +118,19 @@ useEffect(() => {
       reason: v.reason,
       notes: v.notes ?? '',
     }));
-    downloadCsv('visits-completed-all.csv', toCsv(rows, [
+    const rangeLabel = visitFrom && visitTo
+      ? `${visitFrom}_to_${visitTo}`
+      : visitFrom
+        ? `from_${visitFrom}`
+        : visitTo
+          ? `upto_${visitTo}`
+          : 'all-time';
+    downloadCsv(`visits-completed-${rangeLabel}.csv`, toCsv(rows, [
       { key: 'date', label: 'Date' },
       { key: 'school', label: 'School' },
       { key: 'engineer', label: 'Engineer' },
       { key: 'status', label: 'Status' },
       { key: 'reason', label: 'Reason' },
-    ]));
-  };
-
-  const exportDaily = () => {
-    const rows = logsInRange.map((l) => ({
-      date: l.log_date,
-      engineer: engineerById.get(l.engineer_id)?.full_name ?? '',
-      activity: l.activity_type,
-      school: l.school_id ? schoolById.get(l.school_id)?.name ?? '' : '',
-      start: l.start_time ?? '',
-      end: l.end_time ?? '',
-      activities: l.activities_done,
-      approved: l.is_approved ? 'yes' : 'no',
-    }));
-    downloadCsv('daily-logs.csv', toCsv(rows, [
-      { key: 'date', label: 'Date' },
-      { key: 'engineer', label: 'Engineer' },
-      { key: 'activity', label: 'Activity' },
-      { key: 'school', label: 'School' },
-      { key: 'start', label: 'Start' },
-      { key: 'end', label: 'End' },
-      { key: 'activities', label: 'Activities' },
-      { key: 'approved', label: 'Approved' },
-    ]));
-  };
-
-  const exportMonthly = () => {
-    const monthStart = startOfMonth();
-    const monthEnd = endOfMonth();
-    const monthlyVisits = visits.filter((v) => withinRange(v.visit_date, monthStart, monthEnd));
-    const rows = monthlyVisits.map((v) => ({
-      date: v.visit_date,
-      school: schoolById.get(v.school_id)?.name ?? '',
-      engineer: engineerById.get(v.engineer_id)?.full_name ?? '',
-      status: VISIT_STATUS_LABELS[v.status],
-      region: schoolById.get(v.school_id)?.region ?? '',
-    }));
-    downloadCsv(`monthly-${isoDateOnly(monthStart)}.csv`, toCsv(rows, [
-      { key: 'date', label: 'Date' },
-      { key: 'school', label: 'School' },
-      { key: 'engineer', label: 'Engineer' },
-      { key: 'status', label: 'Status' },
-      { key: 'region', label: 'Region' },
     ]));
   };
 
@@ -359,15 +337,26 @@ useEffect(() => {
         <Card>
           <CardHeader title="Visit Reports" />
           <CardBody>
-            <div className="flex flex-col gap-2">
-              <Button variant="secondary" onClick={exportDaily}><Download size={14} /> Download Daily Report (CSV)</Button>
-              <Button variant="secondary" onClick={exportMonthly}><Download size={14} /> Download Monthly Report (CSV)</Button>
-              <Button variant="secondary" onClick={exportVisits}><Download size={14} /> Download Completed Visits (CSV)</Button>
-              <Button variant="primary" onClick={exportAllCompletedVisits}><Download size={14} /> Download All Completed Visits (CSV)</Button>
+            <div className="text-sm text-muted mb-2">Download completed visits within a date range. Leave both dates empty to export all completed visits.</div>
+            <div className="form-row">
+              <Field label="From" style={{ marginBottom: 0 }}>
+                <Input type="date" value={visitFrom} max={visitTo || undefined} onChange={(e) => setVisitFrom(e.target.value)} />
+              </Field>
+              <Field label="To" style={{ marginBottom: 0 }}>
+                <Input type="date" value={visitTo} min={visitFrom || undefined} onChange={(e) => setVisitTo(e.target.value)} />
+              </Field>
             </div>
-            <div className="divider" />
-            <div className="text-xs text-muted">
-              Completed Visits export uses the selected time range ({visitsInRange.filter((v) => v.status === 'completed').length} visits). All Completed Visits ignores the range and downloads every completed visit ({visits.filter((v) => v.status === 'completed').length} total).
+            <div className="flex gap-2 mt-3 flex-wrap" style={{ alignItems: 'center' }}>
+              <Button variant="primary" onClick={downloadCompletedVisitsRange} disabled={completedVisitsInCustomRange.length === 0}>
+                <Download size={14} /> Download Completed Visits
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setVisitFrom(''); setVisitTo(''); }} disabled={!visitFrom && !visitTo}>
+                Clear
+              </Button>
+            </div>
+            <div className="text-xs text-muted mt-2">
+              {completedVisitsInCustomRange.length} completed visit{completedVisitsInCustomRange.length === 1 ? '' : 's'} match the selected range
+              {visitFrom || visitTo ? ` (${visitFrom || 'start'} → ${visitTo || 'now'})` : ' (all time)'}.
             </div>
           </CardBody>
         </Card>
