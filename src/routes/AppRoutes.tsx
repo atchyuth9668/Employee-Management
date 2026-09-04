@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute, RoleRoute } from './Guards';
 import { LoginPage } from '../pages/auth/LoginPage';
-import { SignupPage } from '../pages/auth/SignupPage';
 import { ResetPasswordPage } from '../pages/auth/ResetPasswordPage';
 import { UpdatePasswordPage } from '../pages/auth/UpdatePasswordPage';
 import { OverviewPage } from '../pages/overview/OverviewPage';
@@ -26,7 +25,6 @@ import { NotFoundPage } from '../pages/NotFoundPage';
 export const AppRoutes = () => (
   <Routes>
     <Route path="/login" element={<LoginPage />} />
-    <Route path="/signup" element={<SignupPage />} />
     <Route path="/reset" element={<ResetPasswordPage />} />
     <Route path="/update-password" element={<UpdatePasswordPage />} />
 
