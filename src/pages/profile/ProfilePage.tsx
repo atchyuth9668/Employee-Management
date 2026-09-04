@@ -7,20 +7,22 @@ import { Badge } from '../../components/ui/Badge';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { ROLE_LABELS } from '../../utils/constants';
 import { initials } from '../../utils/helpers';
-import { addDays, startOfMonth, withinRange } from '../../utils/date';
+import { endOfMonth, startOfMonth, withinRange } from '../../utils/date';
 import { supabase } from '../../lib/supabase';
 import { useToast } from '../../providers/ToastProvider';
 import { Modal } from '../../components/modals/Modal';
 
 export const ProfilePage = () => {
   const { profile, user } = useAuth();
-  const { success } = useToast();
+  const { success, error: showError } = useToast();
   const { data: schools = [] } = useSchools();
   const { data: visits = [] } = useVisits();
   const { data: engineers = [] } = useEngineers();
   const [pwdOpen, setPwdOpen] = useState(false);
   const [pwd, setPwd] = useState('');
   const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdError, setPwdError] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = 'My Profile | Field Operations';
@@ -32,15 +34,30 @@ export const ProfilePage = () => {
     () => (myEngineer ? schools.filter((s) => s.region === myEngineer.region && s.is_active) : schools),
     [schools, myEngineer],
   );
-  const monthStart = startOfMonth();
-  const visitsThisMonth = visits.filter((v) => v.engineer_id === myEngineerId && withinRange(v.visit_date, monthStart, addDays(monthStart, 31)));
+  const monthStart = useMemo(() => startOfMonth(), []);
+  const monthEnd = useMemo(() => endOfMonth(monthStart), [monthStart]);
+  const visitsThisMonth = visits.filter((v) => v.engineer_id === myEngineerId && withinRange(v.visit_date, monthStart, monthEnd));
   const completedVisits = visitsThisMonth.filter((v) => v.status === 'completed').length;
   const completionRate = assigned.length === 0 ? 0 : Math.round((completedVisits / assigned.length) * 100);
 
   const submitPassword = async () => {
-    if (pwd.length < 6) return;
-    if (pwd !== pwdConfirm) return;
-    await supabase.auth.updateUser({ password: pwd });
+    setPwdError(null);
+    if (pwd.length < 6) {
+      setPwdError('Password must be at least 6 characters');
+      return;
+    }
+    if (pwd !== pwdConfirm) {
+      setPwdError('Passwords do not match');
+      return;
+    }
+    setPwdSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: pwd });
+    setPwdSaving(false);
+    if (error) {
+      setPwdError(error.message);
+      showError('Password update failed', error.message);
+      return;
+    }
     success('Password updated', 'You can now sign in with your new password');
     setPwdOpen(false);
     setPwd('');
@@ -110,24 +127,28 @@ export const ProfilePage = () => {
       <Modal
         open={pwdOpen}
         title="Change Password"
-        onClose={() => setPwdOpen(false)}
+        onClose={() => { if (!pwdSaving) { setPwdError(null); setPwdOpen(false); } }}
+        dismissible={!pwdSaving}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setPwdOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={submitPassword}>Update</Button>
+            <Button variant="secondary" onClick={() => { setPwdError(null); setPwdOpen(false); }} disabled={pwdSaving}>Cancel</Button>
+            <Button variant="primary" onClick={submitPassword} loading={pwdSaving}>Update</Button>
           </>
         }
       >
         <div className="form-row">
           <div className="form-group">
             <label className="form-label" htmlFor="new_pwd">New password</label>
-            <input id="new_pwd" className="input" type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} />
+            <input id="new_pwd" className="input" type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} disabled={pwdSaving} />
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="new_pwd_confirm">Confirm</label>
-            <input id="new_pwd_confirm" className="input" type="password" value={pwdConfirm} onChange={(e) => setPwdConfirm(e.target.value)} />
+            <input id="new_pwd_confirm" className="input" type="password" value={pwdConfirm} onChange={(e) => setPwdConfirm(e.target.value)} disabled={pwdSaving} />
           </div>
         </div>
+        {pwdError && (
+          <div className="banner banner-danger" style={{ marginTop: 12, fontSize: 13 }}>{pwdError}</div>
+        )}
       </Modal>
     </div>
   );

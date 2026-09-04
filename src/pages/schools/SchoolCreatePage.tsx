@@ -7,13 +7,14 @@ import { Button } from '../../components/ui/Button';
 import { Field, Input, Select } from '../../components/ui/Form';
 import { REGIONS } from '../../utils/constants';
 import { validatePhone } from '../../utils/helpers';
+import type { Region } from '../../types';
 
 interface FormState {
   name: string;
   spoc_name: string;
   spoc_contact: string;
   location: string;
-  region: string;
+  region: Region;
   area: string;
   maps_link: string;
 }

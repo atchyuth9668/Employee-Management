@@ -909,6 +909,7 @@ input, select, textarea {
 }
 .search-result:last-child { border-bottom: none; }
 .search-result:hover { background: var(--bg-muted); }
+.search-result.active { background: var(--bg-muted); }
 
 .notifications-panel {
   width: 380px;

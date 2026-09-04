@@ -339,8 +339,7 @@ export const useUpdateChecklistItem = () => {
       const patch: Record<string, unknown> = { [key]: done, [dateKey]: done ? new Date().toISOString().slice(0, 10) : null };
       const { data, error } = await sb
         .from('school_checklists')
-        .update(patch)
-        .eq('school_id', schoolId)
+        .upsert({ school_id: schoolId, ...patch }, { onConflict: 'school_id' })
         .select('*')
         .single();
       if (error) throw error;
@@ -349,6 +348,7 @@ export const useUpdateChecklistItem = () => {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: queryKeys.schoolChecklist(data.school_id) });
       qc.invalidateQueries({ queryKey: queryKeys.school(data.school_id) });
+      qc.invalidateQueries({ queryKey: queryKeys.schools });
     },
   });
 };

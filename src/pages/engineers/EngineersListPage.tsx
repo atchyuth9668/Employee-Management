@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Pencil, Power, Download, Upload, UserX } from 'lucide-react';
 import { useEngineers, useCreateEngineer, useUpdateEngineer } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
+import type { Region, UserRole } from '../../types';
 import { useToast } from '../../providers/ToastProvider';
 import { supabase } from '../../lib/supabase';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
@@ -27,10 +28,11 @@ export const EngineersListPage = () => {
   const [editing, setEditing] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [hardDeleteId, setHardDeleteId] = useState<string | null>(null);
   const [hardDeleteConfirm, setHardDeleteConfirm] = useState('');
   const [form, setForm] = useState({
-    full_name: '', email: '', phone: '', region: REGIONS[0] as 'Andhra Pradesh' | 'Telangana', role: 'engineer' as 'admin' | 'team_lead' | 'engineer' | 'viewer',
+    full_name: '', email: '', phone: '', region: REGIONS[0] as Region, role: 'engineer' as UserRole,
   });
   const [importData, setImportData] = useState('');
   const [search, setSearch] = useState('');
@@ -60,7 +62,7 @@ export const EngineersListPage = () => {
   const openEdit = (id: string) => {
     const e = engineers.find((x) => x.id === id);
     if (!e) return;
-    setForm({ full_name: e.full_name, email: e.email, phone: e.phone ?? '', region: e.region as 'Andhra Pradesh' | 'Telangana', role: e.role });
+    setForm({ full_name: e.full_name, email: e.email, phone: e.phone ?? '', region: e.region as Region, role: e.role });
     setEditing(id);
     setOpen(true);
   };
@@ -80,7 +82,7 @@ export const EngineersListPage = () => {
     }
     try {
       if (editing) {
-        await update.mutateAsync({ id: editing, updates: { full_name: form.full_name, email: form.email, phone: form.phone || null, region: form.region as 'Andhra Pradesh' | 'Telangana', role: form.role } });
+        await update.mutateAsync({ id: editing, updates: { full_name: form.full_name, email: form.email, phone: form.phone || null, region: form.region as Region, role: form.role } });
         success('Engineer updated', 'Changes saved');
       } else {
         const { error: fnErr } = await supabase.functions.invoke('invite-engineer', {
@@ -106,14 +108,17 @@ export const EngineersListPage = () => {
 
   const handleDelete = async () => {
     if (!deleteId) return;
+    setDeleteLoading(true);
     try {
-      await supabase.functions.invoke('invite-engineer', {
+      const { error: fnErr } = await supabase.functions.invoke('invite-engineer', {
         body: { action: 'set_status', engineer_id: deleteId, is_active: false },
       });
+      if (fnErr) throw fnErr;
       success('Engineer deactivated', 'They can no longer sign in. Re-activate to restore access.');
     } catch (err) {
       showError('Failed to archive', err instanceof Error ? err.message : 'Unexpected error');
     } finally {
+      setDeleteLoading(false);
       setDeleteId(null);
     }
   };
@@ -212,7 +217,7 @@ export const EngineersListPage = () => {
     let added = 0;
     for (const r of valid) {
       try {
-        await create.mutateAsync({ full_name: r.full_name, email: r.email, phone: r.phone || null, region: REGIONS.includes(r.region as 'Andhra Pradesh' | 'Telangana') ? r.region : REGIONS[0], role: r.role, is_active: true, auth_user_id: null, team_id: null });
+        await create.mutateAsync({ full_name: r.full_name, email: r.email, phone: r.phone || null, region: REGIONS.includes(r.region as Region) ? (r.region as Region) : REGIONS[0], role: r.role, is_active: true, auth_user_id: null, team_id: null });
         added++;
       } catch {
         // skip duplicates
@@ -340,7 +345,7 @@ export const EngineersListPage = () => {
         <div className="form-row">
           <Field label="Phone"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
           <Field label="Region" required>
-            <Select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value as 'Andhra Pradesh' | 'Telangana' })}>
+            <Select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value as Region })}>
               {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
             </Select>
           </Field>
@@ -379,7 +384,7 @@ export const EngineersListPage = () => {
         confirmLabel="Deactivate"
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
-        loading={false}
+        loading={deleteLoading}
       />
 
       <Modal

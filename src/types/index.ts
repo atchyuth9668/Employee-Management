@@ -6,6 +6,7 @@ export type EscalationUrgency = 'low' | 'medium' | 'high' | 'critical';
 export type EscalationIssueType = 'missing_material' | 'undelivered_material' | 'other';
 export type MaterialStatus = 'pending' | 'in_transit' | 'delivered' | 'returned';
 export type LmsStatus = 'active' | 'pending' | 'revoked';
+export type Region = 'Andhra Pradesh' | 'Telangana';
 
 export interface Profile {
   id: string;
@@ -23,7 +24,7 @@ export interface Engineer {
   full_name: string;
   email: string;
   phone: string | null;
-  region: string;
+  region: Region;
   team_id: string | null;
   role: UserRole;
   is_active: boolean;
@@ -38,7 +39,7 @@ export interface School {
   spoc_name: string;
   spoc_contact: string;
   location: string;
-  region: string;
+  region: Region;
   area: string;
   latitude: number | null;
   longitude: number | null;

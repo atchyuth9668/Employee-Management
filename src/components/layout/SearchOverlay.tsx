@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -24,7 +24,28 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
   const [engineers, setEngineers] = useState<Engineer[]>([]);
   const [visits, setVisits] = useState<SchoolVisit[]>([]);
   const [escalations, setEscalations] = useState<Escalation[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [term]);
 
   useEffect(() => {
     const run = async () => {
@@ -44,10 +65,10 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
         supabase.from('school_visits').select('*').or(`notes.ilike.${pattern},reason.ilike.${pattern}`).limit(5),
         supabase.from('escalations').select('*').ilike('issue_description', pattern).limit(5),
       ]);
-      setSchools((s.data ?? []) as School[]);
-      setEngineers((e.data ?? []) as Engineer[]);
-      setVisits((v.data ?? []) as SchoolVisit[]);
-      setEscalations((es.data ?? []) as Escalation[]);
+      if (s.data) setSchools(s.data as School[]);
+      if (e.data) setEngineers(e.data as Engineer[]);
+      if (v.data) setVisits(v.data as SchoolVisit[]);
+      if (es.data) setEscalations(es.data as Escalation[]);
     };
     const t = setTimeout(run, 200);
     return () => clearTimeout(t);
@@ -70,33 +91,51 @@ export const SearchOverlay = ({ onClose }: SearchOverlayProps) => {
     return result;
   }, [schools, engineers, visits, escalations]);
 
+  const handleInputKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, Math.max(0, hits.length - 1)));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(0, i - 1));
+    } else if (e.key === 'Enter' && hits[activeIndex]) {
+      e.preventDefault();
+      const target = hits[activeIndex];
+      onClose();
+      navigate(target.to);
+    }
+  };
+
   return (
     <div className="search-overlay" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="search-panel" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px' }}>
           <Search size={18} />
           <input
-            autoFocus
+            ref={inputRef}
             value={term}
             onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={handleInputKey}
             placeholder="Search across the platform"
             className="input"
             style={{ border: 'none', padding: 0 }}
+            aria-label="Search"
           />
           <button className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
-        <div className="search-results">
+        <div className="search-results" role="listbox">
           {hits.length === 0 && term && (
             <div style={{ padding: 20, color: 'var(--fg-muted)', textAlign: 'center' }}>No results</div>
           )}
-          {hits.map((h) => (
+          {hits.map((h, idx) => (
             <div
               key={`${h.type}-${h.id}`}
-              className="search-result"
-              role="button"
-              tabIndex={0}
+              className={`search-result ${idx === activeIndex ? 'active' : ''}`}
+              role="option"
+              aria-selected={idx === activeIndex}
+              onMouseEnter={() => setActiveIndex(idx)}
               onClick={() => {
                 onClose();
                 navigate(h.to);

@@ -26,6 +26,7 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: isSupabaseConfigured(),
       detectSessionInUrl: isSupabaseConfigured(),
+      flowType: 'pkce',
       storage: window.localStorage,
       storageKey: 'field-ops-auth',
     },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Menu, Search, Bell, LogOut, ChevronDown, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '../../providers/AuthProvider';
 import { useConnection } from '../../providers/ConnectionProvider';
@@ -12,6 +12,18 @@ interface TopbarProps {
   onToggleSidebar: () => void;
 }
 
+const useOutsideClick = (onOutside: () => void) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onOutside();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onOutside]);
+  return ref;
+};
+
 export const Topbar = ({ onToggleSidebar }: TopbarProps) => {
   const { profile, signOut } = useAuth();
   const { state } = useConnection();
@@ -19,6 +31,12 @@ export const Topbar = ({ onToggleSidebar }: TopbarProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+
+  const notifRef = useOutsideClick(() => setNotifOpen(false));
+  const menuRef = useOutsideClick(() => setMenuOpen(false));
+
+  const openNotif = () => { setNotifOpen((v) => !v); setMenuOpen(false); };
+  const openMenu = () => { setMenuOpen((v) => !v); setNotifOpen(false); };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -73,8 +91,8 @@ export const Topbar = ({ onToggleSidebar }: TopbarProps) => {
         <span>{connectionLabel}</span>
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <button className="btn btn-ghost btn-icon" aria-label="Notifications" onClick={() => setNotifOpen((v) => !v)}>
+      <div style={{ position: 'relative' }} ref={notifRef}>
+        <button className="btn btn-ghost btn-icon" aria-label="Notifications" onClick={openNotif}>
           <Bell size={18} />
         </button>
         {notifOpen && (
@@ -84,10 +102,10 @@ export const Topbar = ({ onToggleSidebar }: TopbarProps) => {
         )}
       </div>
 
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }} ref={menuRef}>
         <button
           className="btn btn-ghost"
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={openMenu}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
         >
