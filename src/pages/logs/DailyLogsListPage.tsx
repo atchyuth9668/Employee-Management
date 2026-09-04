@@ -72,22 +72,16 @@ export const DailyLogsListPage = () => {
     }
 
     const rows: HolidayRow[] = scoped.map((l) => ({ kind: 'log' as const, log: l }));
-    if (holidays.length > 0 && engineers.length > 0) {
-      const logsByEngineDate = new Map<string, true>();
-      scoped.forEach((l) => {
-        logsByEngineDate.set(`${l.engineer_id}|${l.log_date}`, true);
-      });
-      engineers.forEach((e) => {
-        holidays.forEach((h) => {
-          const key = `${e.id}|${h.holiday_date}`;
-          if (logsByEngineDate.has(key)) return;
-          rows.push({
-            kind: 'holiday',
-            id: `holiday-${h.id}-${e.id}`,
-            engineer_id: e.id,
-            log_date: h.holiday_date,
-            reason: h.reason,
-          });
+    if (holidays.length > 0) {
+      const loggedDates = new Set(scoped.map((l) => l.log_date));
+      holidays.forEach((h) => {
+        if (loggedDates.has(h.holiday_date)) return;
+        rows.push({
+          kind: 'holiday',
+          id: `holiday-${h.id}`,
+          engineer_id: '',
+          log_date: h.holiday_date,
+          reason: h.reason,
         });
       });
     }
@@ -100,7 +94,7 @@ export const DailyLogsListPage = () => {
       return ea.localeCompare(eb);
     });
     return rows;
-  }, [scoped, holidays, engineers, profile, myEngineerId]);
+  }, [scoped, holidays, profile, myEngineerId]);
 
   const holidayCount = combined.filter((r) => r.kind === 'holiday').length;
 
@@ -152,10 +146,11 @@ export const DailyLogsListPage = () => {
               <tbody>
                 {combined.map((row) => {
                   if (row.kind === 'holiday') {
+                    const isAdminView = !row.engineer_id;
                     return (
                       <tr key={row.id} style={{ background: 'var(--info-soft)' }}>
                         <td>{formatDate(row.log_date)}</td>
-                        <td>{engineerById.get(row.engineer_id)?.full_name ?? '—'}</td>
+                        <td>{isAdminView ? <em className="text-muted">All engineers</em> : engineerById.get(row.engineer_id)?.full_name ?? '—'}</td>
                         <td><Badge variant="info"><CalendarOff size={12} /> Holiday</Badge></td>
                         <td className="truncate" style={{ maxWidth: 220 }}>{row.reason}</td>
                         <td>—</td>
