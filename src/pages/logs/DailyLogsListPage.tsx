@@ -49,29 +49,58 @@ export const DailyLogsListPage = () => {
   };
 
   const combined: HolidayRow[] = useMemo(() => {
-    if (profile?.role !== 'engineer' || !myEngineerId) {
-      return scoped.map((l) => ({ kind: 'log' as const, log: l }));
+    if (profile?.role === 'engineer' && myEngineerId) {
+      const logDates = new Set(scoped.map((l) => l.log_date));
+      const rows: HolidayRow[] = scoped.map((l) => ({ kind: 'log' as const, log: l }));
+      holidays
+        .filter((h) => !logDates.has(h.holiday_date))
+        .forEach((h) => {
+          rows.push({
+            kind: 'holiday',
+            id: `holiday-${h.id}`,
+            engineer_id: myEngineerId,
+            log_date: h.holiday_date,
+            reason: h.reason,
+          });
+        });
+      rows.sort((a, b) => {
+        const da = a.kind === 'log' ? a.log.log_date : a.log_date;
+        const db = b.kind === 'log' ? b.log.log_date : b.log_date;
+        return db.localeCompare(da);
+      });
+      return rows;
     }
-    const logDates = new Set(scoped.map((l) => l.log_date));
+
     const rows: HolidayRow[] = scoped.map((l) => ({ kind: 'log' as const, log: l }));
-    holidays
-      .filter((h) => !logDates.has(h.holiday_date))
-      .forEach((h) => {
-        rows.push({
-          kind: 'holiday',
-          id: `holiday-${h.id}`,
-          engineer_id: myEngineerId,
-          log_date: h.holiday_date,
-          reason: h.reason,
+    if (holidays.length > 0 && engineers.length > 0) {
+      const logsByEngineDate = new Map<string, true>();
+      scoped.forEach((l) => {
+        logsByEngineDate.set(`${l.engineer_id}|${l.log_date}`, true);
+      });
+      engineers.forEach((e) => {
+        holidays.forEach((h) => {
+          const key = `${e.id}|${h.holiday_date}`;
+          if (logsByEngineDate.has(key)) return;
+          rows.push({
+            kind: 'holiday',
+            id: `holiday-${h.id}-${e.id}`,
+            engineer_id: e.id,
+            log_date: h.holiday_date,
+            reason: h.reason,
+          });
         });
       });
+    }
     rows.sort((a, b) => {
       const da = a.kind === 'log' ? a.log.log_date : a.log_date;
       const db = b.kind === 'log' ? b.log.log_date : b.log_date;
-      return db.localeCompare(da);
+      if (da !== db) return db.localeCompare(da);
+      const ea = a.kind === 'log' ? a.log.engineer_id : a.engineer_id;
+      const eb = b.kind === 'log' ? b.log.engineer_id : b.engineer_id;
+      return ea.localeCompare(eb);
     });
     return rows;
-  }, [scoped, holidays, profile, myEngineerId]);
+  }, [scoped, holidays, engineers, profile, myEngineerId]);
 
   const holidayCount = combined.filter((r) => r.kind === 'holiday').length;
 
