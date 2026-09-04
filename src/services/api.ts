@@ -39,51 +39,62 @@ const sb = supabase as unknown as {
   removeChannel: (channel: unknown) => void;
 };
 
-const activeChannels = new Map<string, any>();
-const channelRefCounts = new Map<string, number>();
+interface ActiveChannel {
+  channel: any;
+  refs: number;
+}
+
+const activeChannels = new Map<string, ActiveChannel>();
 
 const acquireChannel = (
   channelName: string,
   table: string,
+  queryClient: ReturnType<typeof useQueryClient>,
   queryKeyToInvalidate: readonly unknown[],
   filter?: string,
-): any => {
+): void => {
   const existing = activeChannels.get(channelName);
   if (existing) {
-    channelRefCounts.set(channelName, (channelRefCounts.get(channelName) ?? 0) + 1);
-    return existing;
+    existing.refs += 1;
+    return;
   }
-  const qc = (sb as any)._qcRef;
-  let channel: any = null;
   try {
-    channel = sb.channel(channelName);
+    const channel = sb.channel(channelName);
     const cfg: Record<string, unknown> = { event: '*', schema: 'public', table };
     if (filter) cfg.filter = filter;
     channel.on('postgres_changes', cfg, () => {
-      qc?.invalidateQueries({ queryKey: queryKeyToInvalidate });
+      queryClient.invalidateQueries({ queryKey: queryKeyToInvalidate });
     });
-    channel.subscribe();
-    activeChannels.set(channelName, channel);
-    channelRefCounts.set(channelName, 1);
+    channel.subscribe((status: string) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        const entry = activeChannels.get(channelName);
+        if (entry) {
+          try { sb.removeChannel(entry.channel); } catch { /* noop */ }
+          activeChannels.delete(channelName);
+        }
+      }
+    });
+    activeChannels.set(channelName, { channel, refs: 1 });
   } catch (err) {
     console.warn(`Realtime subscribe failed for ${table}`, err);
   }
-  return channel;
 };
 
 const releaseChannel = (channelName: string): void => {
-  const count = (channelRefCounts.get(channelName) ?? 0) - 1;
-  if (count > 0) {
-    channelRefCounts.set(channelName, count);
-    return;
-  }
-  const channel = activeChannels.get(channelName);
-  if (channel) {
-    try {
-      sb.removeChannel(channel);
-    } catch {}
-    activeChannels.delete(channelName);
-    channelRefCounts.delete(channelName);
+  const entry = activeChannels.get(channelName);
+  if (!entry) return;
+  entry.refs -= 1;
+  if (entry.refs > 0) return;
+  try {
+    sb.removeChannel(entry.channel);
+  } catch { /* noop */ }
+  activeChannels.delete(channelName);
+};
+
+export const releaseAllChannels = (): void => {
+  for (const [name, entry] of activeChannels.entries()) {
+    try { sb.removeChannel(entry.channel); } catch { /* noop */ }
+    activeChannels.delete(name);
   }
 };
 
@@ -97,12 +108,12 @@ const useRealtimeSubscription = (
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
-    (sb as any)._qcRef = qc;
-    acquireChannel(channelName, table, queryKeyToInvalidate, filter);
+    acquireChannel(channelName, table, qc, queryKeyToInvalidate, filter);
     return () => {
       releaseChannel(channelName);
     };
-  }, [qc, channelName, table, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelName, table, filter, qc]);
 };
 
 export const useEngineers = (options?: Partial<UseQueryOptions<Engineer[]>>) => {

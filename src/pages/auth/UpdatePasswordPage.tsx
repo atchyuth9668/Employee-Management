@@ -20,23 +20,39 @@ export const UpdatePasswordPage = () => {
     const init = async () => {
       const hash = window.location.hash;
       const search = window.location.search;
-      if (hash.includes('access_token') || hash.includes('type=recovery') || search.includes('code=')) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(
-          window.location.href,
-        );
+      const params = new URLSearchParams(search);
+      const code = params.get('code');
+      const errorDescription = params.get('error_description');
+      if (errorDescription) {
+        if (!cancelled) showError('Recovery link error', errorDescription);
+        return;
+      }
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href);
         if (cancelled) return;
-        if (!error && data.session) {
+        if (error) {
+          showError('Recovery link invalid', error.message);
+        } else if (data.session) {
+          window.history.replaceState({}, document.title, window.location.pathname);
           setReady(true);
-          return;
         }
+        return;
+      }
+      if (hash.includes('access_token') || hash.includes('type=recovery')) {
+        const { data, error } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (error) {
+          showError('Recovery link invalid', error.message);
+        } else if (data.session) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setReady(true);
+        }
+        return;
       }
       const { data } = await supabase.auth.getSession();
       if (!cancelled) {
-        if (data.session) {
-          setReady(true);
-        } else {
-          setReady(false);
-        }
+        if (data.session) setReady(true);
+        else setReady(false);
       }
     };
     init();
@@ -44,7 +60,7 @@ export const UpdatePasswordPage = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

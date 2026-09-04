@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { Profile, UserRole } from '../types';
+import { releaseAllChannels } from '../services/api';
 
 interface AuthContextValue {
   session: Session | null;
@@ -22,8 +24,6 @@ interface AuthContextValue {
   canAssignVisits: boolean;
 }
 
-import { createContext, useContext } from 'react';
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -31,8 +31,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-
+  const queryClient = useQueryClient();
   const configured = isSupabaseConfigured();
+  const inFlightToken = useRef<string | null>(null);
+  const mountedRef = useRef(true);
 
   const fetchProfile = useCallback(async (uid: string): Promise<Profile | null> => {
     const { data, error } = await supabase
@@ -50,50 +52,74 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshProfile = useCallback(async () => {
     if (!user) return;
     const p = await fetchProfile(user.id);
-    setProfile(p);
+    if (mountedRef.current) setProfile(p);
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
+    let initToken: string | null = null;
+
     const init = async () => {
       try {
         const { data } = await supabase.auth.getSession();
-        if (!mounted) return;
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-        if (data.session?.user) {
-          const p = await fetchProfile(data.session.user.id);
-          if (mounted) setProfile(p);
+        if (!mountedRef.current) return;
+        const sess = data.session;
+        initToken = sess?.access_token ?? null;
+        inFlightToken.current = initToken;
+        setSession(sess);
+        setUser(sess?.user ?? null);
+        if (sess?.user) {
+          const p = await fetchProfile(sess.user.id);
+          if (mountedRef.current && inFlightToken.current === initToken) {
+            setProfile(p);
+          }
         }
       } catch (err) {
         console.error('Auth init failed', err);
       } finally {
-        if (mounted) setLoading(false);
+        if (mountedRef.current) setLoading(false);
       }
     };
     init();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      const token = s?.access_token ?? null;
+      inFlightToken.current = token;
+      if (!mountedRef.current) return;
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        const p = await fetchProfile(s.user.id);
-        setProfile(p);
+        fetchProfile(s.user.id).then((p) => {
+          if (mountedRef.current && inFlightToken.current === token) {
+            setProfile(p);
+            setLoading(false);
+          }
+        });
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       sub.subscription.unsubscribe();
     };
   }, [fetchProfile]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-  }, []);
+    inFlightToken.current = null;
+    setProfile(null);
+    setUser(null);
+    setSession(null);
+    queryClient.clear();
+    releaseAllChannels();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Sign out failed', err);
+    }
+  }, [queryClient]);
 
   const role = profile?.role ?? null;
 

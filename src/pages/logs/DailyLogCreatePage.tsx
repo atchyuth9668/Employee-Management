@@ -1,9 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { LogCreateModal } from './DailyLogsListPage';
-import { useState } from 'react';
 
 export const DailyLogCreatePage = () => {
   const navigate = useNavigate();

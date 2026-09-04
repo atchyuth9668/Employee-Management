@@ -9,18 +9,29 @@ interface ModalProps {
   children: ReactNode;
   footer?: ReactNode;
   size?: 'md' | 'lg';
+  dismissible?: boolean;
 }
 
-export const Modal = ({ open, title, onClose, children, footer, size = 'md' }: ModalProps) => {
+export const Modal = ({ open, title, onClose, children, footer, size = 'md', dismissible = true }: ModalProps) => {
   if (!open) return null;
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={title} onClick={onClose}>
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={() => {
+        if (dismissible) onClose();
+      }}
+    >
       <div className={cn('modal', size === 'lg' ? 'modal-lg' : '')} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
-          <button className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>
-            <X size={16} />
-          </button>
+          {dismissible && (
+            <button className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}>
+              <X size={16} />
+            </button>
+          )}
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}

@@ -6,7 +6,7 @@ import { relativeFromNow } from '../../utils/date';
 import { EmptyState } from '../ui/EmptyState';
 
 export const NotificationsPanel = ({ onClose }: { onClose: () => void }) => {
-  const { data = [] } = useNotifications();
+  const { data = [], isLoading, isError, refetch } = useNotifications();
   const navigate = useNavigate();
 
   return (
@@ -18,7 +18,22 @@ export const NotificationsPanel = ({ onClose }: { onClose: () => void }) => {
         </button>
       </div>
       <div style={{ overflowY: 'auto' }}>
-        {data.length === 0 ? (
+        {isLoading ? (
+          <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
+            <span className="spinner" />
+          </div>
+        ) : isError ? (
+          <div style={{ padding: 16 }}>
+            <EmptyState
+              icon={<AlertTriangle size={26} />}
+              title="Couldn't load notifications"
+              description="Tap retry to try again."
+            />
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => refetch()}>Retry</button>
+            </div>
+          </div>
+        ) : data.length === 0 ? (
           <EmptyState icon={<AlertTriangle size={26} />} title="No active escalations" description="All clear across the platform." />
         ) : (
           data.map((n) => (

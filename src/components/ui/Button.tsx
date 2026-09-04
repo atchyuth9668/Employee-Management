@@ -33,7 +33,7 @@ export const Button = ({
     >
       {loading ? <span className="spinner" aria-hidden="true" /> : leftIcon}
       {!iconOnly && children}
-      {rightIcon && !iconOnly}
+      {!loading && rightIcon && !iconOnly ? <span aria-hidden="true">{rightIcon}</span> : null}
     </button>
   );
 };
