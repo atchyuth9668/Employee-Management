@@ -200,13 +200,12 @@ export const LogCreateModal = ({ open, onClose, defaultEngineerId }: { open: boo
 };
 
 const LogModal = ({ open, onClose, defaultEngineerId }: { open: boolean; onClose: () => void; defaultEngineerId?: string }) => {
-  const { profile, canApproveLogs } = useAuth();
+  const { profile } = useAuth();
   const { data: schools = [] } = useSchools();
-  const { data: engineers = [] } = useEngineers();
   const create = useCreateDailyLog();
   const { success, error: showError } = useToast();
+  const engineerId = defaultEngineerId ?? profile?.engineer_id ?? '';
   const [form, setForm] = useState({
-    engineer_id: defaultEngineerId ?? profile?.engineer_id ?? '',
     school_id: '',
     log_date: isoDateOnly(),
     activity_type: 'school_visit',
@@ -216,13 +215,9 @@ const LogModal = ({ open, onClose, defaultEngineerId }: { open: boolean; onClose
     notes: '',
   });
 
-  useEffect(() => {
-    if (defaultEngineerId) setForm((f) => ({ ...f, engineer_id: defaultEngineerId }));
-  }, [defaultEngineerId]);
-
   const submit = async () => {
-    if (!form.engineer_id || !form.activities_done.trim()) {
-      showError('Missing details', 'Engineer and activities done are required');
+    if (!engineerId || !form.activities_done.trim()) {
+      showError('Missing details', 'Activities done are required');
       return;
     }
     if (form.activity_type === 'school_visit' && !form.school_id) {
@@ -231,7 +226,7 @@ const LogModal = ({ open, onClose, defaultEngineerId }: { open: boolean; onClose
     }
     try {
       await create.mutateAsync({
-        engineer_id: form.engineer_id,
+        engineer_id: engineerId,
         school_id: form.activity_type === 'school_visit' ? form.school_id : null,
         log_date: form.log_date,
         activity_type: form.activity_type as 'school_visit' | 'work_from_home' | 'leave' | 'holiday' | 'other',
@@ -261,14 +256,6 @@ const LogModal = ({ open, onClose, defaultEngineerId }: { open: boolean; onClose
       }
     >
       <div className="form-row">
-        {canApproveLogs && (
-          <Field label="Engineer" required>
-            <Select value={form.engineer_id} onChange={(e) => setForm({ ...form, engineer_id: e.target.value })}>
-              <option value="">Select engineer</option>
-              {engineers.filter((e) => e.is_active).map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-            </Select>
-          </Field>
-        )}
         <Field label="Date" required>
           <Input type="date" value={form.log_date} onChange={(e) => setForm({ ...form, log_date: e.target.value })} />
         </Field>
