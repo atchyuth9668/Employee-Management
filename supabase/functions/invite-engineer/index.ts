@@ -202,11 +202,11 @@ serve(async (req: Request) => {
       .update({ role: payload.role, engineer_id: engineer.id })
       .eq('id', created.user.id);
 
-    await authClient.auth.resetPasswordForEmail(payload.email, {
-      redirectTo: `${new URL(req.url).origin}/update-password`,
-    });
-
-    return new Response(JSON.stringify({ engineer, user_id: created.user.id }), {
+    return new Response(JSON.stringify({
+      engineer,
+      user_id: created.user.id,
+      temp_password: tempPassword,
+    }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

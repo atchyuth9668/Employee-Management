@@ -83,7 +83,7 @@ export const EngineersListPage = () => {
         await update.mutateAsync({ id: editing, updates: { full_name: form.full_name, email: form.email, phone: form.phone || null, region: form.region as Region, role: form.role } });
         success('Engineer updated', 'Changes saved');
       } else {
-        const { error: fnErr } = await supabase.functions.invoke('invite-engineer', {
+        const { data: inviteData, error: fnErr } = await supabase.functions.invoke('invite-engineer', {
           body: {
             action: 'invite',
             full_name: form.full_name,
@@ -94,7 +94,12 @@ export const EngineersListPage = () => {
           },
         });
         if (fnErr) throw fnErr;
-        success('Engineer invited', 'They will receive an email to set their password');
+        const tempPassword = inviteData?.temp_password;
+        if (tempPassword) {
+          success('Engineer invited', `Share this password with them: ${tempPassword}. They can log in and change it from Profile.`);
+        } else {
+          success('Engineer invited', 'They can now log in.');
+        }
       }
       setOpen(false);
       resetForm();
