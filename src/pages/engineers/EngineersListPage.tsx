@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, Power, Download, Upload, UserX } from 'lucide-react';
+import { Plus, Pencil, Power, UserX } from 'lucide-react';
 import { useEngineers, useCreateEngineer, useUpdateEngineer } from '../../services/api';
 import { useAuth } from '../../providers/AuthProvider';
 import type { Region, UserRole } from '../../types';
@@ -14,7 +14,7 @@ import { Modal } from '../../components/modals/Modal';
 import { ConfirmDialog } from '../../components/modals/Modal';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { initials, downloadCsv, toCsv, validateEmail, validatePhone } from '../../utils/helpers';
+import { initials, validateEmail, validatePhone } from '../../utils/helpers';
 import { REGIONS, ROLE_LABELS, USER_ROLES } from '../../utils/constants';
 
 export const EngineersListPage = () => {
@@ -26,7 +26,6 @@ export const EngineersListPage = () => {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [hardDeleteId, setHardDeleteId] = useState<string | null>(null);
@@ -34,7 +33,6 @@ export const EngineersListPage = () => {
   const [form, setForm] = useState({
     full_name: '', email: '', phone: '', region: REGIONS[0] as Region, role: 'engineer' as UserRole,
   });
-  const [importData, setImportData] = useState('');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -159,75 +157,6 @@ export const EngineersListPage = () => {
     }
   };
 
-  const exportCsv = () => {
-    const csv = toCsv(
-      engineers.map((e) => ({
-        full_name: e.full_name, email: e.email, phone: e.phone ?? '', region: e.region, role: e.role, is_active: e.is_active ? 'yes' : 'no',
-      })),
-      [
-        { key: 'full_name', label: 'Full Name' },
-        { key: 'email', label: 'Email' },
-        { key: 'phone', label: 'Phone' },
-        { key: 'region', label: 'Region' },
-        { key: 'role', label: 'Role' },
-        { key: 'is_active', label: 'Active' },
-      ]
-    );
-    downloadCsv('engineers.csv', csv);
-    success('Exported', 'CSV downloaded');
-  };
-
-  const handleImport = async () => {
-    let records: Array<{ full_name: string; email: string; phone?: string; region: string; role: 'admin' | 'team_lead' | 'engineer' | 'viewer' }>;
-    try {
-      if (importData.trim().startsWith('[')) {
-        records = JSON.parse(importData);
-      } else {
-        const lines = importData.trim().split(/\r?\n/).filter(Boolean);
-        if (lines.length < 2) throw new Error('CSV must include header and at least one row');
-        const header = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-        records = lines.slice(1).map((line) => {
-          const cols = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-          const row: Record<string, string> = {};
-          header.forEach((h, i) => { row[h] = cols[i] ?? ''; });
-          return row as unknown as typeof records[number];
-        });
-      }
-    } catch (err) {
-      showError('Parse failed', err instanceof Error ? err.message : 'Invalid format');
-      return;
-    }
-
-    if (!Array.isArray(records) || records.length === 0) {
-      showError('No records', 'Provide at least one record');
-      return;
-    }
-    const seen = new Set<string>();
-    const valid: typeof records = [];
-    for (const r of records) {
-      if (!r.full_name || !r.email || !validateEmail(r.email)) continue;
-      if (seen.has(r.email)) continue;
-      seen.add(r.email);
-      valid.push({ ...r, role: (r.role && USER_ROLES.includes(r.role as 'admin' | 'team_lead' | 'engineer' | 'viewer') ? r.role : 'engineer') });
-    }
-    if (valid.length === 0) {
-      showError('Nothing valid', 'No valid records found');
-      return;
-    }
-    let added = 0;
-    for (const r of valid) {
-      try {
-        await create.mutateAsync({ full_name: r.full_name, email: r.email, phone: r.phone || null, region: REGIONS.includes(r.region as Region) ? (r.region as Region) : REGIONS[0], role: r.role, is_active: true, auth_user_id: null, team_id: null });
-        added++;
-      } catch {
-        // skip duplicates
-      }
-    }
-    success('Import complete', `${added} engineer${added === 1 ? '' : 's'} imported`);
-    setImportOpen(false);
-    setImportData('');
-  };
-
   if (!canManageEngineers) {
     return (
       <Card>
@@ -246,8 +175,6 @@ export const EngineersListPage = () => {
           <div className="page-subtitle">Field team roster</div>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={exportCsv}><Download size={14} /> Export CSV</Button>
-          <Button variant="secondary" onClick={() => setImportOpen(true)}><Upload size={14} /> Import</Button>
           <Button variant="primary" onClick={openCreate}><Plus size={14} /> Add Engineer</Button>
         </div>
       </div>
@@ -354,26 +281,6 @@ export const EngineersListPage = () => {
           <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as 'admin' | 'team_lead' | 'engineer' | 'viewer' })} disabled={!isAdmin}>
             {USER_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </Select>
-        </Field>
-      </Modal>
-
-      <Modal
-        open={importOpen}
-        title="Import Engineers"
-        onClose={() => setImportOpen(false)}
-        size="lg"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setImportOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleImport}>Import</Button>
-          </>
-        }
-      >
-        <p className="text-sm text-muted mb-3">
-          Paste CSV (with header row: <code>full_name,email,phone,region,role</code>) or JSON array. Duplicates by email are skipped.
-        </p>
-        <Field label="Data">
-          <textarea className="textarea" rows={8} value={importData} onChange={(e) => setImportData(e.target.value)} placeholder='full_name,email,phone,region,role\nJohn Doe,john@example.com,+91...,Andhra Pradesh,engineer' />
         </Field>
       </Modal>
 
