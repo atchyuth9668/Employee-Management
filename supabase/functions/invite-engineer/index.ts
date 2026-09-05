@@ -162,7 +162,7 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const tempPassword = crypto.randomUUID() + 'Aa1!';
+    const tempPassword = 'stemrobo';
     const { data: created, error: createErr } = await authClient.auth.admin.createUser({
       email: payload.email,
       password: tempPassword,
